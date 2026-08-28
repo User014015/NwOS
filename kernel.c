@@ -1,6 +1,6 @@
 #include "drivers/keyboard.h"
 
-/* Прототипы функций */
+/* Prototypes functions */
 
 void putchar_os(char c);
 
@@ -368,7 +368,7 @@ void read_line(char* buffer, int max)
         }
 
         /*
-         * Обычный символ.
+         * Symbol
          */
         if (key > 0 && key < 256)
         {
