@@ -1,0 +1,12 @@
+*.o
+*.elf
+*.bin
+*.img
+*.iso
+*.vdi
+*.txt
+
+*.exe
+
+.vscode/
+.idea/
