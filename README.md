@@ -1,4 +1,4 @@
-# MyOS
+# NwOS
 
 A small x86 operating system written in C and NASM.
 
