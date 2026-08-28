@@ -6,7 +6,7 @@ static int shift_pressed = 0;
 
 
 /*
- * Обычная раскладка.
+ * Regular layout
  */
 static const char keyboard_map[128] =
 {
@@ -42,7 +42,7 @@ static const char keyboard_map[128] =
 
 
 /*
- * Раскладка при зажатом Shift.
+ * Layout with squeezing shift
  */
 static const char keyboard_shift_map[128] =
 {
@@ -94,7 +94,7 @@ static unsigned char inb(unsigned short port)
 int keyboard_getkey(void)
 {
     /*
-     * Ждём нажатия/отпускания клавиши.
+     * Waiting for pressing\unpressing
      */
     while (!(inb(0x64) & 1))
     {
@@ -127,14 +127,6 @@ int keyboard_getkey(void)
         if (scancode == 0x4D)
             return KEY_RIGHT;
     }
-
-
-    /*
-     * Левый Shift:
-     *
-     * 0x2A = нажат
-     * 0xAA = отпущен
-     */
     if (scancode == 0x2A)
     {
         shift_pressed = 1;
@@ -146,14 +138,6 @@ int keyboard_getkey(void)
         shift_pressed = 0;
         return KEY_NONE;
     }
-
-
-    /*
-     * Правый Shift:
-     *
-     * 0x36 = нажат
-     * 0xB6 = отпущен
-     */
     if (scancode == 0x36)
     {
         shift_pressed = 1;
@@ -165,18 +149,12 @@ int keyboard_getkey(void)
         shift_pressed = 0;
         return KEY_NONE;
     }
-
-
-    /*
-     * Если это отпускание любой другой клавиши —
-     * игнорируем.
-     */
     if (scancode & 0x80)
         return KEY_NONE;
 
 
     /*
-     * Специальные клавиши.
+     * Special keys
      */
     if (scancode == 0x1C)
         return KEY_ENTER;
@@ -186,7 +164,7 @@ int keyboard_getkey(void)
 
 
     /*
-     * Обычный символ.
+     * symbol
      */
     if (scancode < 128)
     {
