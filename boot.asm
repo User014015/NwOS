@@ -4,17 +4,14 @@ org 0x7C00
 start:
     cli
 
-    ; Настраиваем сегменты
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, 0x7C00
 
-    ; BIOS передаёт номер загрузочного диска в DL
     mov [boot_drive], dl
 
-    ; Проверяем поддержку BIOS Extensions (EDD)
     mov ah, 0x41
     mov bx, 0x55AA
     mov dl, [boot_drive]
@@ -25,11 +22,6 @@ start:
     cmp bx, 0xAA55
     jne disk_error
 
-    ; Загружаем kernel.bin
-    ;
-    ; LBA 1 = второй сектор диска
-    ; Загружаем 16 секторов
-    ; в физический адрес 0x1000
 
     mov si, disk_address_packet
     mov dl, [boot_drive]
@@ -38,7 +30,7 @@ start:
     int 0x13
     jc disk_error
 
-    ; Переход в protected mode
+
     cli
 
     lgdt [gdt_descriptor]
@@ -51,7 +43,7 @@ start:
 
 
 ; --------------------------------
-; Ошибка диска
+; Disk error
 ; --------------------------------
 
 disk_error:
@@ -92,7 +84,7 @@ protected_mode:
 
     mov esp, 0x90000
 
-    ; kernel.bin загружен по адресу 0x1000
+    ; kernel.bin loaded in 0x1000
     call 0x1000
 
 .hang32:
@@ -118,16 +110,16 @@ error_message db "Disk error!", 0
 
 disk_address_packet:
 
-    db 0x10             ; размер DAP = 16 байт
-    db 0                ; reserved
+    db 0x10             ; size of DAP = 16 bytes
+    db 0
 
-    dw 16               ; количество секторов
+    dw 16
 
-    dw 0x1000           ; offset загрузки
-    dw 0x0000           ; segment загрузки
+    dw 0x1000           ; offset
+    dw 0x0000
 
-    dd 1                ; LBA = 1
-    dd 0                ; старшая часть LBA
+    dd 1
+    dd 0
 
 
 ; --------------------------------

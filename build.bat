@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-echo === Building MyOS ===
+echo === Building NwOS ===
 
 echo [1/5] Assembling kernel entry...
 nasm -f elf32 kernel_entry.asm -o kernel_entry.o

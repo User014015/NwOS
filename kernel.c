@@ -14,6 +14,11 @@ unsigned int rand_simple(void);
 
 int random_range(int min, int max);
 
+void print_int(int number);
+void game_guess(void);
+void game_rps(void);
+void game_word(void);
+
 typedef unsigned short uint16_t;
 
 #define WIDTH 80
@@ -37,6 +42,17 @@ typedef unsigned short uint16_t;
 #define COLOR_WHITE       15
 
 static unsigned char text_color = COLOR_LIGHT_GRAY;
+
+void outb(unsigned short port, unsigned char value);
+unsigned char inb(unsigned short port);
+
+unsigned char rtc_read(unsigned char reg);
+unsigned char bcd_to_bin(unsigned char value);
+
+void get_time(int* hour, int* minute, int* second);
+void get_date(int* day, int* month, int* year);
+
+void print_two_digits(int value);
 
 /* =========================
    VGA
@@ -479,23 +495,24 @@ void game_guess(void)
 
 void game_rps(void)
 {
-    char buffer[32];
+    char choice[32];
 
-    print("\n=== ROCK PAPER SCISSORS ===\n");
-    print("rock / paper / scissors\n");
+    int player_score = 0;
+    int computer_score = 0;
+
+    print_title("\n=== ROCK PAPER SCISSORS ===\n");
+    print("First to 3 wins!\n");
+    print("Type rock, paper or scissors.\n");
     print("Type quit to exit.\n\n");
 
-    while (1)
+    while (player_score < 3 &&
+           computer_score < 3)
     {
         print("Your choice: ");
+        read_line(choice, 32);
 
-        read_line(buffer, 32);
-
-        if (strcmp(buffer, "quit") == 0)
-        {
-            print_error("Game over.\n");
+        if (strcmp(choice, "quit") == 0)
             return;
-        }
 
         int computer = random_range(0, 2);
 
@@ -509,50 +526,79 @@ void game_rps(void)
             print("scissors\n");
 
 
-        /*
-         * ROCK
-         */
-        if (strcmp(buffer, "rock") == 0)
+        if (strcmp(choice, "rock") == 0)
         {
             if (computer == 0)
+            {
                 print("Draw!\n");
+            }
             else if (computer == 1)
+            {
                 print_error("You lose!\n");
+                computer_score++;
+            }
             else
+            {
                 print_success("You win!\n");
+                player_score++;
+            }
         }
 
-        /*
-         * PAPER
-         */
-        else if (strcmp(buffer, "paper") == 0)
+        else if (strcmp(choice, "paper") == 0)
         {
             if (computer == 0)
+            {
                 print_success("You win!\n");
+                player_score++;
+            }
             else if (computer == 1)
+            {
                 print("Draw!\n");
+            }
             else
+            {
                 print_error("You lose!\n");
+                computer_score++;
+            }
         }
 
-        /*
-         * SCISSORS
-         */
-        else if (strcmp(buffer, "scissors") == 0)
+        else if (strcmp(choice, "scissors") == 0)
         {
             if (computer == 0)
+            {
                 print_error("You lose!\n");
+                computer_score++;
+            }
             else if (computer == 1)
+            {
                 print_success("You win!\n");
+                player_score++;
+            }
             else
+            {
                 print("Draw!\n");
+            }
         }
 
         else
         {
-            print("Unknown choice.\n");
+            print_error("Unknown choice!\n");
         }
+
+        print("Score: ");
+        print_int(player_score);
+
+        print(" - ");
+
+        print_int(computer_score);
+
+        print("\n\n");
     }
+
+    if (player_score == 3)
+        print_success("You won the match!\n");
+    else
+        print_error("Computer won the match!\n");
 }
 
 
@@ -562,6 +608,7 @@ void games(void)
 
     print("  guess - Guess the Number\n");
     print("  rps   - Rock Paper Scissors\n");
+    print("  word - Guess word\n");
 
     print("\n");
 }
@@ -673,6 +720,33 @@ void dateCr()
     set_color(COLOR_LIGHT_GRAY);
 }
 
+// guess lang (not random)
+
+void game_word(void)
+{
+    char answer[32];
+
+    print_title("\n=== GUESS THE WORD ===\n");
+    print("Hint: programming language.\n");
+    print("You have 3 attempts.\n\n");
+
+    for (int attempt = 1; attempt <= 3; attempt++)
+    {
+        print("Answer: ");
+        read_line(answer, 32);
+
+        if (strcmp(answer, "c") == 0)
+        {
+            print_success("Correct! You win!\n");
+            return;
+        }
+
+        print_error("Wrong answer!\n");
+    }
+
+    print("The answer was: c\n");
+}
+
 /* =========================
    Shell
    ========================= */
@@ -742,6 +816,10 @@ void shell(void)
         {
             Calc();
         }
+        else if (strcmp(command, "word") == 0)
+        {
+            game_word();
+        }
 
         else if (strcmp(command, "guess") == 0)
         {
@@ -775,7 +853,7 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.0\n");
+    print("        Welcome to NwOS 1.1\n");
     print("================================\n");
     print("Keyboard: OK\n");
     print("Type 'help' for commands.\n\n");
