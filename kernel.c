@@ -716,7 +716,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.1");
+    print("v.1.2");
     set_color(COLOR_LIGHT_GRAY);
 }
 
@@ -735,7 +735,7 @@ void game_word(void)
         print("Answer: ");
         read_line(answer, 32);
 
-        if (strcmp(answer, "c") == 0)
+        if (strcmp(answer, "python") == 0)
         {
             print_success("Correct! You win!\n");
             return;
@@ -784,11 +784,13 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("NwOS 1.1\n");
-            print("C + NASM\n");
-            print("x86 protected mode\n");
-            print("VGA text mode\n");
+            print("====NwOS 1.2====\n");
+            print("Name: NwOS\n");
+            print("Version: v1.2\n");
+            print("Arch: x86\n");
+            print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
+            print("================\n");
             set_color(COLOR_LIGHT_GRAY);
         }
 
@@ -853,10 +855,15 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.1\n");
+    print("        Welcome to NwOS 1.2\n");
     print("================================\n");
     print("Keyboard: OK\n");
     print("Type 'help' for commands.\n\n");
+    set_color(COLOR_GREEN);
+    print("==================");
+    set_color(COLOR_BLUE);
+    print("==================\n");
+    set_color(COLOR_LIGHT_GRAY);
 
     shell();
 
