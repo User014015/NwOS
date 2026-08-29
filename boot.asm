@@ -4,14 +4,25 @@ org 0x7C00
 start:
     cli
 
+<<<<<<< HEAD
+=======
+    ; Setup segments
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, 0x7C00
 
+<<<<<<< HEAD
     mov [boot_drive], dl
 
+=======
+    ; The BIOS passes the boot disk number to DL
+    mov [boot_drive], dl
+
+    ; Checking BIOS Extensions (EDD) support
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     mov ah, 0x41
     mov bx, 0x55AA
     mov dl, [boot_drive]
@@ -22,6 +33,14 @@ start:
     cmp bx, 0xAA55
     jne disk_error
 
+<<<<<<< HEAD
+=======
+    ; Loading kernel.bin
+    ;
+    ; LBA 1 = second sector of the disk
+    ; Load 16 sectors
+    ; to physical address 0x1000
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
 
     mov si, disk_address_packet
     mov dl, [boot_drive]
@@ -30,7 +49,11 @@ start:
     int 0x13
     jc disk_error
 
+<<<<<<< HEAD
 
+=======
+    ; protected mode
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     cli
 
     lgdt [gdt_descriptor]
@@ -43,7 +66,11 @@ start:
 
 
 ; --------------------------------
+<<<<<<< HEAD
 ; Disk error
+=======
+; Disk Error
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
 ; --------------------------------
 
 disk_error:
@@ -110,6 +137,7 @@ error_message db "Disk error!", 0
 
 disk_address_packet:
 
+<<<<<<< HEAD
     db 0x10             ; size of DAP = 16 bytes
     db 0
 
@@ -120,6 +148,18 @@ disk_address_packet:
 
     dd 1
     dd 0
+=======
+    db 0x10             ; size DAP = 16 bytes
+    db 0                ; reserved
+
+    dw 16               ; num of sectors
+
+    dw 0x1000           ; offset load
+    dw 0x0000           ; segment load
+
+    dd 1                ; LBA = 1
+    dd 0                ; the upper part of the LBA
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
 
 
 ; --------------------------------

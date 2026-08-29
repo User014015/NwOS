@@ -5,6 +5,12 @@ static int extended_key = 0;
 static int shift_pressed = 0;
 
 
+<<<<<<< HEAD
+=======
+/*
+ * Regular layout
+ */
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
 static const char keyboard_map[128] =
 {
     0, 27,
@@ -37,6 +43,13 @@ static const char keyboard_map[128] =
     ' '
 };
 
+<<<<<<< HEAD
+=======
+
+/*
+ * Layout with squeezing shift
+ */
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
 static const char keyboard_shift_map[128] =
 {
     0, 27,
@@ -86,6 +99,12 @@ static unsigned char inb(unsigned short port)
 
 int keyboard_getkey(void)
 {
+<<<<<<< HEAD
+=======
+    /*
+     * Waiting for pressing\unpressing
+     */
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     while (!(inb(0x64) & 1))
     {
     }
@@ -117,8 +136,11 @@ int keyboard_getkey(void)
         if (scancode == 0x4D)
             return KEY_RIGHT;
     }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     if (scancode == 0x2A)
     {
         shift_pressed = 1;
@@ -130,8 +152,11 @@ int keyboard_getkey(void)
         shift_pressed = 0;
         return KEY_NONE;
     }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     if (scancode == 0x36)
     {
         shift_pressed = 1;
@@ -143,19 +168,35 @@ int keyboard_getkey(void)
         shift_pressed = 0;
         return KEY_NONE;
     }
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     if (scancode & 0x80)
         return KEY_NONE;
 
 
+<<<<<<< HEAD
 
+=======
+    /*
+     * Special keys
+     */
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     if (scancode == 0x1C)
         return KEY_ENTER;
 
     if (scancode == 0x0E)
         return KEY_BACKSPACE;
 
+<<<<<<< HEAD
+=======
+
+    /*
+     * symbol
+     */
+>>>>>>> b63cfc414c08696fbc676b879a8d1bed4ad066af
     if (scancode < 128)
     {
         if (shift_pressed)
