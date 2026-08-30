@@ -8,6 +8,9 @@
 ```
 # NwOS
 
+<img width="699" height="399" alt="sys" src="https://github.com/user-attachments/assets/cb43dc54-5446-405c-bbc6-68a7951a5541" />
+
+
 A small x86 operating system written in C and NASM.
 
 ## Features
