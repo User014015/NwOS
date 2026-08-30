@@ -13,6 +13,8 @@
 
 A small x86 operating system written in C and NASM.
 
+It can run in ~4 MB RAM (tested on virtual box)
+
 ## Features
 
 - VGA text mode
