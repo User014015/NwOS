@@ -1,3 +1,12 @@
+  _   _           ____   _____ 
+ | \ | |         / __ \ / ____|
+ |  \| |_      _| |  | | (___  
+ | . ` \ \ /\ / / |  | |\___ \ 
+ | |\  |\ V  V /| |__| |____) |
+ |_| \_| \_/\_/  \____/|_____/ 
+
+ A x86 operating-system
+
 # NwOS
 
 A small x86 operating system written in C and NASM.
