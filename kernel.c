@@ -747,6 +747,33 @@ void game_word(void)
     print("The answer was: c\n");
 }
 
+void nwfetch(void)
+{
+    print_title("\n");
+
+    print("       __  __       ");
+    print("   NwOS\n");
+
+    print("      |  \\|  |      ");
+    print("   Version: 1.3\n");
+
+    print("      | |\\| |      ");
+    print("   Arch: x86\n");
+
+    print("      | |\\| |      ");
+    print("   Kernel: C\n");
+
+    print("      |_|  |_|      ");
+    print("   Bootloader: NASM\n");
+
+    print("\n");
+
+    print("  Memory model: 32-bit\n");
+    print("  Display: VGA text mode\n");
+    print("  Keyboard: PS/2\n");
+    print("\n");
+}
+
 /* =========================
    Shell
    ========================= */
@@ -771,6 +798,7 @@ void shell(void)
             print("  echo   - print text\n");
             print("  clear  - clear screen\n");
             print("  about  - OS information\n");
+            print("  nwfetch - system info\n");
             print("  games  - list games\n");
             print("  calc   - Calculator\n");
             set_color(COLOR_LIGHT_GRAY);
@@ -784,9 +812,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.2====\n");
+            print("====NwOS 1.3====\n");
             print("Name: NwOS\n");
-            print("Version: v1.2\n");
+            print("Version: v1.3\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -803,6 +831,11 @@ void shell(void)
         else if (strcmp(command, "games") == 0)
         {
             games();
+        }
+        
+        else if (strcmp(command, "nwfetch") == 0)
+        {
+            nwfetch();
         }
 
         else if (strcmp(command, "date?") == 0)
@@ -855,7 +888,7 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.2\n");
+    print("        Welcome to NwOS 1.3\n");
     print("================================\n");
     print("Keyboard: OK\n");
     print("Type 'help' for commands.\n\n");
