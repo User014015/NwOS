@@ -18,11 +18,18 @@ void print_int(int number);
 void game_guess(void);
 void game_rps(void);
 void game_word(void);
+int strncmp(const char* a, const char* b, int n);
+
+void reboot(void);
 
 typedef unsigned short uint16_t;
 
 #define WIDTH 80
 #define HEIGHT 25
+
+#define MAX_FILES 16
+#define MAX_FILENAME 32
+#define MAX_FILE_SIZE 256
 
 #define COLOR_BLACK         0
 #define COLOR_BLUE          1
@@ -247,6 +254,25 @@ int strcmp(const char* a, const char* b)
     }
 
     return *a - *b;
+}
+
+int strncmp(const char* a, const char* b, int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        if (a[i] != b[i])
+        {
+            return (unsigned char)a[i] -
+                   (unsigned char)b[i];
+        }
+
+        if (a[i] == '\0')
+        {
+            return 0;
+        }
+    }
+
+    return 0;
 }
 
 
@@ -716,7 +742,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.2");
+    print("v.1.3.1");
     set_color(COLOR_LIGHT_GRAY);
 }
 
@@ -773,6 +799,32 @@ void nwfetch(void)
     print("  Keyboard: PS/2\n");
     print("\n");
 }
+void reboot(void)
+{
+    unsigned char status;
+
+    do
+    {
+        __asm__ volatile (
+            "inb %%dx, %%al"
+            : "=a"(status)
+            : "d"((unsigned short)0x64)
+        );
+    }
+    while (status & 0x02);
+
+    __asm__ volatile (
+        "outb %%al, %%dx"
+        :
+        : "a"((unsigned char)0xFE),
+          "d"((unsigned short)0x64)
+    );
+
+    while (1)
+    {
+        __asm__ volatile ("hlt");
+    }
+}
 
 /* =========================
    Shell
@@ -801,6 +853,7 @@ void shell(void)
             print("  nwfetch - system info\n");
             print("  games  - list games\n");
             print("  calc   - Calculator\n");
+            print("  reboot - restart NwOS\n");
             set_color(COLOR_LIGHT_GRAY);
         }
 
@@ -812,9 +865,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3====\n");
+            print("====NwOS 1.3.1====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3\n");
+            print("Version: v1.3.1\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -850,6 +903,10 @@ void shell(void)
         else if (strcmp(command, "calc") == 0)
         {
             Calc();
+        }
+        else if (strcmp(command, "reboot") == 0)
+        {
+            reboot();
         }
         else if (strcmp(command, "word") == 0)
         {
@@ -888,14 +945,14 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3\n");
+    print("        Welcome to NwOS 1.3.1\n");
     print("================================\n");
     print("Keyboard: OK\n");
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);
-    print("==================");
+    print("================");
     set_color(COLOR_BLUE);
-    print("==================\n");
+    print("================\n");
     set_color(COLOR_LIGHT_GRAY);
 
     shell();
