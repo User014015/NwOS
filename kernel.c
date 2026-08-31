@@ -627,12 +627,50 @@ void game_rps(void)
         print_error("Computer won the match!\n");
 }
 
+void game_guessh(void)
+{
+    char bufferh[32];
+
+    int secreth = random_range(1, 250);
+
+    print("\n=== GUESS THE NUMBER HARD===\n");
+    print("I chose a number from 1 to 250.\n");
+    print_error("Type quit to exit.\n\n");
+
+    while (1)
+    {
+        print("Your guess: ");
+
+        read_line(bufferh, 32);
+
+        if (strcmp(bufferh, "quit") == 0)
+        {
+            print("You left the game.\n");
+            return;
+        }
+
+        int number = atoi_simple(bufferh);
+
+        if (number == secreth)
+        {
+            print_success("Correct! You win!\n");
+            return;
+        }
+
+        if (number < secreth)
+            print("Too small!\n");
+        else
+            print("Too big!\n");
+    }
+}
+
 
 void games(void)
 {
     print("\nGames:\n");
 
     print("  guess - Guess the Number\n");
+    print("  guessh - Guess number (hard)\n");
     print("  rps   - Rock Paper Scissors\n");
     print("  word - Guess word\n");
 
@@ -699,7 +737,7 @@ void Calc(void)
     print("First number: ");
     a = read_int();
 
-    print("Operation (+ - * /): ");
+    print("Operation (+ - * ^ /): ");
     read_line(operation, 4);
 
     print("Second number: ");
@@ -718,6 +756,10 @@ void Calc(void)
     else if (operation[0] == '*')
     {
         print_int(a * b);
+    }
+    else if (operation[0] == '^')
+    {
+        print_int(a ^ b);
     }
     else if (operation[0] == '/')
     {
@@ -742,7 +784,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.3.1");
+    print("v.1.3.2");
     set_color(COLOR_LIGHT_GRAY);
 }
 
@@ -761,7 +803,7 @@ void game_word(void)
         print("Answer: ");
         read_line(answer, 32);
 
-        if (strcmp(answer, "python") == 0)
+        if (strcmp(answer, "Rust") == 0)
         {
             print_success("Correct! You win!\n");
             return;
@@ -781,7 +823,7 @@ void nwfetch(void)
     print("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print("   Version: 1.3\n");
+    print("   Version: 1.3.2\n");
 
     print("      | |\\| |      ");
     print("   Arch: x86\n");
@@ -826,6 +868,66 @@ void reboot(void)
     }
 }
 
+// colors
+
+void t_colorgreen(void)
+{
+    set_color(COLOR_GREEN);
+    print("setted color to green\n");
+}
+void t_colorred(void)
+{
+    set_color(COLOR_RED);
+    print("setted color to red\n");
+}
+void t_colorgray(void)
+{
+    set_color(COLOR_LIGHT_GRAY);
+    print("setted color to gray\n");
+}
+void t_colorblue(void)
+{
+    set_color(COLOR_BLUE);
+    print("setted color to blue\n");
+}
+void t_colorcyan(void)
+{
+    set_color(COLOR_CYAN);
+    print("setted color to cyan\n");
+}
+
+void t_colorsetter(void)
+{
+    print_error("!Warning! it only test command, it may not work\n");
+    int chooseT;
+    print("1.green\n");
+    print("2.red\n");
+    print("3.gray (Default)\n");
+    print("4.blue\n");
+    print("5.cyan\n");
+    chooseT = read_int();
+    if (chooseT == 1)
+    {
+        t_colorgreen();
+    }
+    if (chooseT == 2)
+    {
+        t_colorred();
+    }
+    if (chooseT == 3)
+    {
+        t_colorgray();
+    }
+    if (chooseT == 4)
+    {
+        t_colorblue();
+    }
+    if (chooseT == 5)
+    {
+        t_colorcyan();
+    }
+}
+
 /* =========================
    Shell
    ========================= */
@@ -853,6 +955,7 @@ void shell(void)
             print("  nwfetch - system info\n");
             print("  games  - list games\n");
             print("  calc   - Calculator\n");
+            print("  color  - change color\n");
             print("  reboot - restart NwOS\n");
             set_color(COLOR_LIGHT_GRAY);
         }
@@ -865,9 +968,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3.1====\n");
+            print("====NwOS 1.3.2====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3.1\n");
+            print("Version: v1.3.2\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -891,7 +994,7 @@ void shell(void)
             nwfetch();
         }
 
-        else if (strcmp(command, "date?") == 0)
+        else if (strcmp(command, "datec") == 0)
         {
             dateCr();
         }
@@ -903,6 +1006,14 @@ void shell(void)
         else if (strcmp(command, "calc") == 0)
         {
             Calc();
+        }
+        else if (strcmp(command, "guessh") == 0)
+        {
+            game_guessh();
+        }
+        else if (strcmp(command, "color") == 0)
+        {
+            t_colorsetter();
         }
         else if (strcmp(command, "reboot") == 0)
         {
@@ -945,9 +1056,11 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3.1\n");
+    print("        Welcome to NwOS 1.3.2\n");
     print("================================\n");
+    set_color(COLOR_GREEN);
     print("Keyboard: OK\n");
+    set_color(COLOR_LIGHT_GRAY);
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);
     print("================");

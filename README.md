@@ -25,7 +25,7 @@ A small x86 operating system written in C and NASM.
 - Time
 - Automatic terminal scrolling
 
-## Build
+## Build from virtual box
 build:
 
 make sure that you have Oracle Virtualbox
@@ -45,6 +45,18 @@ VBoxManage convertfromraw "C:\road\to\nwos.img" "C:\road\to\NwOS.vdi" --format V
 it gonna create VDI file
 
 then you need to create a new machine named "NwOS" and put vdi as hard drive
+
+## Build from qemu
+
+download qemu from ucrt
+
+then in ucrt run this:
+
+cd C:/Road/to/nwos.img
+
+and then enter this:
+
+qemu-system-i386 -drive file=nwos.img,format=raw,index=0,media=disk
 
 ## Run
 

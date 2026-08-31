@@ -1,4 +1,4 @@
-bbits 16
+bits 16
 org 0x7C00
 
 start:
@@ -121,7 +121,7 @@ disk_address_packet:
     db 0x10             ; size DAP = 16 bytes
     db 0                ; reserved
 
-    dw 16               ; num of sectors
+    dw 32               ; num of sectors
 
     dw 0x1000           ; offset load
     dw 0x0000           ; segment load
