@@ -784,7 +784,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.3.2");
+    print("v.1.3.3");
     set_color(COLOR_LIGHT_GRAY);
 }
 
@@ -823,7 +823,7 @@ void nwfetch(void)
     print("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print("   Version: 1.3.2\n");
+    print("   Version: 1.3.3\n");
 
     print("      | |\\| |      ");
     print("   Arch: x86\n");
@@ -866,6 +866,194 @@ void reboot(void)
     {
         __asm__ volatile ("hlt");
     }
+}
+
+typedef struct
+{
+    int used;
+    char name[MAX_FILENAME];
+    char data[MAX_FILE_SIZE];
+} OSFile;
+
+OSFile files[MAX_FILES];
+
+int fs_find(const char* name)
+{
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        if (files[i].used &&
+            strcmp(files[i].name, name) == 0)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void fs_create(const char* name)
+{
+    if (name[0] == '\0')
+    {
+        print_error("Filename is empty.\n");
+        return;
+    }
+
+    if (fs_find(name) != -1)
+    {
+        print_error("File already exists.\n");
+        return;
+    }
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        if (!files[i].used)
+        {
+            files[i].used = 1;
+
+            int j = 0;
+
+            while (name[j] != '\0' &&
+                   j < MAX_FILENAME - 1)
+            {
+                files[i].name[j] = name[j];
+                j++;
+            }
+
+            files[i].name[j] = '\0';
+            files[i].data[0] = '\0';
+
+            print_success("File created.\n");
+            return;
+        }
+    }
+
+    print_error("No free file slots.\n");
+}
+
+void fs_list(void)
+{
+    print_title("\n=== FILES ===\n\n");
+
+    int found = 0;
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        if (files[i].used)
+        {
+            print("  ");
+            print(files[i].name);
+            putchar_os('\n');
+
+            found = 1;
+        }
+    }
+
+    if (!found)
+    {
+        print("  No files.\n");
+    }
+
+    putchar_os('\n');
+}
+
+void fs_write(const char* name, const char* text)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    int i = 0;
+
+    while (text[i] != '\0' &&
+           i < MAX_FILE_SIZE - 1)
+    {
+        files[index].data[i] = text[i];
+        i++;
+    }
+
+    files[index].data[i] = '\0';
+
+    if (text[i] != '\0')
+    {
+        print_error("Text is too long. Maximum is 255 characters.\n");
+        return;
+    }
+
+    print_success("File written.\n");
+}
+
+void fs_read(const char* name)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    print_title("\n--- ");
+    print(files[index].name);
+    print(" ---\n");
+
+    print(files[index].data);
+
+    putchar_os('\n');
+
+    print_title("--- END ---\n\n");
+}
+
+void fs_edit(const char* name, const char* text)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    int i = 0;
+
+    while (text[i] != '\0' &&
+           i < MAX_FILE_SIZE - 1)
+    {
+        files[index].data[i] = text[i];
+        i++;
+    }
+
+    files[index].data[i] = '\0';
+
+    if (text[i] != '\0')
+    {
+        print_error("Text is too long. Maximum is 255 characters.\n");
+        return;
+    }
+
+    print_success("File edited.\n");
+}
+
+void fs_delete(const char* name)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    files[index].used = 0;
+
+    files[index].name[0] = '\0';
+    files[index].data[0] = '\0';
+
+    print_success("File deleted.\n");
 }
 
 // colors
@@ -956,6 +1144,12 @@ void shell(void)
             print("  games  - list games\n");
             print("  calc   - Calculator\n");
             print("  color  - change color\n");
+            print("  fs      - list files\n");
+            print("  create <file> - create file\n");
+            print("  read <file> - read file\n");
+            print("  write <file> <txt> - write file\n");
+            print("  edit <file> <txt> - edit file\n");
+            print("  delete <file> - delete file\n");
             print("  reboot - restart NwOS\n");
             set_color(COLOR_LIGHT_GRAY);
         }
@@ -968,9 +1162,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3.2====\n");
+            print("====NwOS 1.3.3====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3.2\n");
+            print("Version: v1.3.3\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -1002,6 +1196,66 @@ void shell(void)
         else if (strcmp(command, "testH") == 0)
         {
             testH();
+        }
+        else if (strcmp(command, "fs") == 0)
+        {
+            fs_list();
+        }
+        else if (strncmp(command, "create ", 7) == 0)
+        {
+            fs_create(command + 7);
+        }
+        else if (strncmp(command, "read ", 5) == 0)
+        {
+            fs_read(command + 5);
+        }
+        else if (strncmp(command, "delete ", 7) == 0)
+        {
+            fs_delete(command + 7);
+        }
+        else if (strncmp(command, "write ", 6) == 0)
+        {
+            char* separator = command + 6;
+
+            while (*separator != ' ' &&
+                    *separator != '\0')
+            {
+                separator++;
+            }
+
+            if (*separator == '\0')
+            {
+                print_error("Usage: write <file> <text>\n");
+            }
+            else
+            {
+                *separator = '\0';
+
+                fs_write(command + 6,
+                        separator + 1);
+            }
+        }
+        else if (strncmp(command, "edit ", 5) == 0)
+        {
+            char* separator = command + 5;
+
+            while (*separator != ' ' &&
+                   *separator != '\0')
+            {
+                separator++;
+            }
+
+            if (*separator == '\0')
+            {
+                print_error("Usage: edit <file> <text>\n");
+            }
+            else
+            {
+                *separator = '\0';
+
+                fs_edit(command + 5,
+                        separator + 1);
+            }
         }
         else if (strcmp(command, "calc") == 0)
         {
@@ -1056,7 +1310,7 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3.2\n");
+    print("        Welcome to NwOS 1.3.3\n");
     print("================================\n");
     set_color(COLOR_GREEN);
     print("Keyboard: OK\n");
