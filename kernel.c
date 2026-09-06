@@ -18,6 +18,12 @@ void print_int(int number);
 void game_guess(void);
 void game_rps(void);
 void game_word(void);
+void game_coin(void);
+void game_dice(void);
+void game_higher_lower(void);
+void game_math(void);
+
+void games_menu(void);
 int strncmp(const char* a, const char* b, int n);
 
 void reboot(void);
@@ -447,6 +453,16 @@ void print_title(const char* text)
     set_color(COLOR_LIGHT_GRAY);
 }
 
+void delay(unsigned int count)
+{
+    unsigned int i;
+
+    for (i = 0; i < count; i++)
+    {
+        __asm__ volatile ("nop");
+    }
+}
+
 
 /* =========================
    Game
@@ -494,7 +510,7 @@ void game_guess(void)
 
     while (1)
     {
-        print("Your guess: ");
+        print("your guess: ");
 
         read_line(buffer, 32);
 
@@ -513,9 +529,12 @@ void game_guess(void)
         }
 
         if (number < secret)
+        {
             print("Too small!\n");
-        else
+        }
+        else {
             print("Too big!\n");
+        }
     }
 }
 
@@ -639,7 +658,7 @@ void game_guessh(void)
 
     while (1)
     {
-        print("Your guess: ");
+        print("your guess: ");
 
         read_line(bufferh, 32);
 
@@ -715,7 +734,7 @@ void game_dice(void)
 
     dice = (rand_simple() % 6) + 1;
 
-    print("You rolled: ");
+    print_success("You rolled: ");
     print_int(dice);
     putchar_os('\n');
 
@@ -993,7 +1012,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.3.4");
+    print("v.1.3.5");
     set_color(COLOR_LIGHT_GRAY);
 }
 
@@ -1032,7 +1051,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.3.4\n");
+    print_success("   Version: 1.3.5\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1168,6 +1187,85 @@ void fs_list(void)
     }
 
     putchar_os('\n');
+}
+
+void games_menu(void)
+{
+    char choice[8];
+
+    while (1)
+    {
+        clear();
+
+        print("\n\n");
+        set_color(COLOR_YELLOW);
+        print("                    NwOS GAMES\n\n");
+        set_color(COLOR_LIGHT_GRAY);
+
+
+        print("              +----------------------+\n");
+        print("              |      GAMES MENU      |\n");
+        print("              +----------------------+\n");
+        print("              |  1. Guess Number     |\n");
+        print("              |  2. Word Game        |\n");
+        print("              |  3. Rock Paper Sc.   |\n");
+        print("              |  4. Coin Flip        |\n");
+        print("              |  5. Dice             |\n");
+        print("              |  6. Higher / Lower   |\n");
+        print("              |  7. Math Quiz        |\n");
+        print("              |                      |\n");
+        print("              |  0. Back             |\n");
+        print("              +----------------------+\n\n");
+
+        print("                 Select: ");
+
+        read_line(choice, 8);
+
+        if (strcmp(choice, "0") == 0)
+        {
+            clear();
+            return;
+        }
+        else if (strcmp(choice, "1") == 0)
+        {
+            clear();
+            game_guess();
+        }
+        else if (strcmp(choice, "2") == 0)
+        {
+            clear();
+            game_word();
+        }
+        else if (strcmp(choice, "3") == 0)
+        {
+            clear();
+            game_rps();
+        }
+        else if (strcmp(choice, "4") == 0)
+        {
+            clear();
+            game_coin();
+        }
+        else if (strcmp(choice, "5") == 0)
+        {
+            clear();
+            game_dice();
+        }
+        else if (strcmp(choice, "6") == 0)
+        {
+            clear();
+            game_higher_lower();
+        }
+        else if (strcmp(choice, "7") == 0)
+        {
+            clear();
+            game_math();
+        }
+        else
+        {
+            print_error("\nInvalid choice.\n");
+        }
+    }
 }
 
 void fs_write(const char* name, const char* text)
@@ -1375,9 +1473,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3.4====\n");
+            print("====NwOS 1.3.5====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3.4\n");
+            print("Version: v1.3.5\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -1393,7 +1491,7 @@ void shell(void)
 
         else if (strcmp(command, "games") == 0)
         {
-            games();
+            games_menu();
         }
         
         else if (strcmp(command, "nwfetch") == 0)
@@ -1404,6 +1502,10 @@ void shell(void)
         else if (strcmp(command, "datec") == 0)
         {
             dateCr();
+        }
+        else if (strcmp(command, "games old") == 0)
+        {
+            games();
         }
 
         else if (strcmp(command, "testH") == 0)
@@ -1539,7 +1641,7 @@ void kernel_main(void)
     random_init();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3.4\n");
+    print("        Welcome to NwOS 1.3.5\n");
     print("================================\n");
     set_color(COLOR_GREEN);
     print("Keyboard: OK\n");
