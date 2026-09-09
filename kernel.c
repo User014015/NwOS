@@ -1,4 +1,5 @@
 #include "drivers/keyboard.h"
+#include "drivers/disk.h"
 
 /* Prototypes functions */
 
@@ -22,6 +23,9 @@ void game_coin(void);
 void game_dice(void);
 void game_higher_lower(void);
 void game_math(void);
+void fs_save_directory(void);
+void fs_load(void);
+void *memcpy(void *dest, const void *src, unsigned int n);
 
 void games_menu(void);
 int strncmp(const char* a, const char* b, int n);
@@ -36,6 +40,23 @@ typedef unsigned short uint16_t;
 #define MAX_FILES 16
 #define MAX_FILENAME 32
 #define MAX_FILE_SIZE 256
+
+/*
+ * Disk-backed filesystem layout.
+ *
+ * boot.asm now loads up to 130 sectors for the kernel (LBA 1-130),
+ * so the filesystem area starts at LBA 200 to leave a safe margin
+ * for the kernel to keep growing. Make sure the .img is padded to
+ * at least (FS_DATA_LBA + MAX_FILES) sectors, i.e. 218 sectors /
+ * ~109 KB - padding to a full 1.44MB floppy (2880 sectors) is a
+ * safe, simple choice with plenty of headroom.
+ *
+ *   LBA 200-201 : directory table (used flag, name, size per file)
+ *   LBA 202-217 : file data, one 512-byte sector per file slot
+ */
+#define FS_DIR_LBA     200
+#define FS_DIR_SECTORS 2
+#define FS_DATA_LBA    (FS_DIR_LBA + FS_DIR_SECTORS)
 
 #define COLOR_BLACK         0
 #define COLOR_BLUE          1
@@ -56,8 +77,16 @@ typedef unsigned short uint16_t;
 
 static unsigned char text_color = COLOR_LIGHT_GRAY;
 
-void outb(unsigned short port, unsigned char value);
-unsigned char inb(unsigned short port);
+/*
+ * base_color is the user's chosen "default" terminal color
+ * (set via the color command). All the print_* helpers and
+ * the shell prompt restore to base_color instead of a
+ * hardcoded gray, so the chosen color actually sticks.
+ */
+static unsigned char base_color = COLOR_LIGHT_GRAY;
+
+void fs_load(void);
+void fs_save_directory(void);
 
 unsigned char rtc_read(unsigned char reg);
 unsigned char bcd_to_bin(unsigned char value);
@@ -111,6 +140,19 @@ void scroll(void)
     }
 
     cursor_y = HEIGHT - 1;
+}
+
+void *memcpy(void *dest, const void *src, unsigned int n)
+{
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+
+    for (unsigned int i = 0; i < n; i++)
+    {
+        d[i] = s[i];
+    }
+
+    return dest;
 }
 
 void save_command(const char* command)
@@ -244,6 +286,17 @@ void print(const char* text)
 
 void set_color(unsigned char color)
 {
+    text_color = color;
+}
+
+/*
+ * Sets both the active color and the persistent base color,
+ * so future resets (prompt, print_error/success/title, etc.)
+ * fall back to this color instead of gray.
+ */
+void set_base_color(unsigned char color)
+{
+    base_color = color;
     text_color = color;
 }
 
@@ -436,21 +489,21 @@ void print_error(const char* text)
 {
     set_color(COLOR_LIGHT_RED);
     print(text);
-    set_color(COLOR_LIGHT_GRAY);
+    set_color(base_color);
 }
 
 void print_success(const char* text)
 {
     set_color(COLOR_LIGHT_GREEN);
     print(text);
-    set_color(COLOR_LIGHT_GRAY);
+    set_color(base_color);
 }
 
 void print_title(const char* text)
 {
     set_color(COLOR_YELLOW);
     print(text);
-    set_color(COLOR_LIGHT_GRAY);
+    set_color(base_color);
 }
 
 void delay(unsigned int count)
@@ -960,7 +1013,7 @@ void Calc(void)
 
     print("\n=== Calculator ===\n");
 
-    set_color(COLOR_LIGHT_GRAY);
+    set_color(base_color);
 
     print("First number: ");
     a = read_int();
@@ -1012,8 +1065,8 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.3.5");
-    set_color(COLOR_LIGHT_GRAY);
+    print("v.1.3.6");
+    set_color(base_color);
 }
 
 // guess lang (not random)
@@ -1031,7 +1084,7 @@ void game_word(void)
         print("Answer: ");
         read_line(answer, 32);
 
-        if (strcmp(answer, "Rust") == 0)
+        if (strcmp(answer, "rust") == 0)
         {
             print_success("Correct! You win!\n");
             return;
@@ -1040,7 +1093,7 @@ void game_word(void)
         print_error("Wrong answer!\n");
     }
 
-    print_error("The answer was: Rust\n");
+    print_error("The answer was: rust\n");
 }
 
 void nwfetch(void)
@@ -1051,7 +1104,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.3.5\n");
+    print_success("   Version: 1.3.6\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1071,7 +1124,7 @@ void nwfetch(void)
     print("  Keyboard: PS/2\n");
     print("\n");
 
-    set_color(COLOR_LIGHT_GRAY);
+    set_color(base_color);
 }
 void reboot(void)
 {
@@ -1100,21 +1153,107 @@ void reboot(void)
     }
 }
 
-typedef struct
-{
-    int used;
-    char name[MAX_FILENAME];
-    char data[MAX_FILE_SIZE];
-} OSFile;
 
-OSFile files[MAX_FILES];
+/* =========================
+   Filesystem (stored on disk)
+   ========================= */
+
+typedef struct __attribute__((packed))
+{
+    unsigned char used;
+    char name[MAX_FILENAME];
+    unsigned int size;
+} DirEntry;
+
+static DirEntry directory[MAX_FILES];
+
+/*
+ * Loads the directory table from disk into memory. Call once
+ * at boot so files created in earlier sessions show up again.
+ */
+void fs_load(void)
+{
+    unsigned char buffer[FS_DIR_SECTORS * 512];
+
+    for (int s = 0; s < FS_DIR_SECTORS; s++)
+    {
+        ata_read_sector(FS_DIR_LBA + s, buffer + s * 512);
+    }
+
+    DirEntry* disk_entries = (DirEntry*)buffer;
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        directory[i] = disk_entries[i];
+
+        /*
+         * A blank / never-formatted image reads back as garbage,
+         * not necessarily zero. Only trust "used" if it's exactly
+         * 1, so noise on disk doesn't look like real files.
+         */
+        if (directory[i].used != 1)
+        {
+            directory[i].used = 0;
+            directory[i].name[0] = '\0';
+            directory[i].size = 0;
+        }
+    }
+}
+
+/*
+ * Writes the whole directory table back to disk. Called after
+ * every create/write/edit/delete so changes survive a reboot.
+ */
+void fs_save_directory(void)
+{
+    unsigned char buffer[FS_DIR_SECTORS * 512];
+
+    DirEntry* disk_entries = (DirEntry*)buffer;
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        disk_entries[i] = directory[i];
+    }
+
+    for (int s = 0; s < FS_DIR_SECTORS; s++)
+    {
+        ata_write_sector(FS_DIR_LBA + s, buffer + s * 512);
+    }
+}
+
+/*
+ * Wipes the filesystem area on disk. Use this once on a fresh
+ * image, or to recover from a corrupted directory table.
+ */
+void fs_format(void)
+{
+    unsigned char empty[512];
+
+    for (int i = 0; i < 512; i++)
+    {
+        empty[i] = 0;
+    }
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        directory[i].used = 0;
+        directory[i].name[0] = '\0';
+        directory[i].size = 0;
+
+        ata_write_sector(FS_DATA_LBA + i, empty);
+    }
+
+    fs_save_directory();
+
+    print_success("Filesystem formatted.\n");
+}
 
 int fs_find(const char* name)
 {
     for (int i = 0; i < MAX_FILES; i++)
     {
-        if (files[i].used &&
-            strcmp(files[i].name, name) == 0)
+        if (directory[i].used &&
+            strcmp(directory[i].name, name) == 0)
         {
             return i;
         }
@@ -1139,21 +1278,32 @@ void fs_create(const char* name)
 
     for (int i = 0; i < MAX_FILES; i++)
     {
-        if (!files[i].used)
+        if (!directory[i].used)
         {
-            files[i].used = 1;
+            directory[i].used = 1;
 
             int j = 0;
 
             while (name[j] != '\0' &&
                    j < MAX_FILENAME - 1)
             {
-                files[i].name[j] = name[j];
+                directory[i].name[j] = name[j];
                 j++;
             }
 
-            files[i].name[j] = '\0';
-            files[i].data[0] = '\0';
+            directory[i].name[j] = '\0';
+            directory[i].size = 0;
+
+            unsigned char empty[512];
+
+            for (int k = 0; k < 512; k++)
+            {
+                empty[k] = 0;
+            }
+
+            ata_write_sector(FS_DATA_LBA + i, empty);
+
+            fs_save_directory();
 
             print_success("File created.\n");
             return;
@@ -1171,10 +1321,15 @@ void fs_list(void)
 
     for (int i = 0; i < MAX_FILES; i++)
     {
-        if (files[i].used)
+        if (directory[i].used)
         {
             print("  ");
-            print(files[i].name);
+            print(directory[i].name);
+
+            print("  (");
+            print_int((int)directory[i].size);
+            print(" bytes)");
+
             putchar_os('\n');
 
             found = 1;
@@ -1200,7 +1355,7 @@ void games_menu(void)
         print("\n\n");
         set_color(COLOR_YELLOW);
         print("                    NwOS GAMES\n\n");
-        set_color(COLOR_LIGHT_GRAY);
+        set_color(base_color);
 
 
         print("              +----------------------+\n");
@@ -1268,6 +1423,40 @@ void games_menu(void)
     }
 }
 
+void fs_store_data(int index, const char* text, const char* success_message)
+{
+    unsigned char buffer[512];
+
+    int i = 0;
+
+    while (text[i] != '\0' &&
+           i < MAX_FILE_SIZE - 1)
+    {
+        buffer[i] = text[i];
+        i++;
+    }
+
+    buffer[i] = '\0';
+
+    for (int k = i + 1; k < 512; k++)
+    {
+        buffer[k] = 0;
+    }
+
+    directory[index].size = (unsigned int)i;
+
+    ata_write_sector(FS_DATA_LBA + index, buffer);
+    fs_save_directory();
+
+    if (text[i] != '\0')
+    {
+        print_error("Text is too long. Maximum is 255 characters.\n");
+        return;
+    }
+
+    print_success(success_message);
+}
+
 void fs_write(const char* name, const char* text)
 {
     int index = fs_find(name);
@@ -1278,24 +1467,7 @@ void fs_write(const char* name, const char* text)
         return;
     }
 
-    int i = 0;
-
-    while (text[i] != '\0' &&
-           i < MAX_FILE_SIZE - 1)
-    {
-        files[index].data[i] = text[i];
-        i++;
-    }
-
-    files[index].data[i] = '\0';
-
-    if (text[i] != '\0')
-    {
-        print_error("Text is too long. Maximum is 255 characters.\n");
-        return;
-    }
-
-    print_success("File written.\n");
+    fs_store_data(index, text, "File written.\n");
 }
 
 void fs_read(const char* name)
@@ -1308,11 +1480,16 @@ void fs_read(const char* name)
         return;
     }
 
+    unsigned char buffer[512];
+
+    ata_read_sector(FS_DATA_LBA + index, buffer);
+    buffer[511] = '\0';
+
     print_title("\n--- ");
-    print(files[index].name);
+    print(directory[index].name);
     print(" ---\n");
 
-    print(files[index].data);
+    print((const char*)buffer);
 
     putchar_os('\n');
 
@@ -1329,24 +1506,7 @@ void fs_edit(const char* name, const char* text)
         return;
     }
 
-    int i = 0;
-
-    while (text[i] != '\0' &&
-           i < MAX_FILE_SIZE - 1)
-    {
-        files[index].data[i] = text[i];
-        i++;
-    }
-
-    files[index].data[i] = '\0';
-
-    if (text[i] != '\0')
-    {
-        print_error("Text is too long. Maximum is 255 characters.\n");
-        return;
-    }
-
-    print_success("File edited.\n");
+    fs_store_data(index, text, "File edited.\n");
 }
 
 void fs_delete(const char* name)
@@ -1359,10 +1519,12 @@ void fs_delete(const char* name)
         return;
     }
 
-    files[index].used = 0;
+    directory[index].used = 0;
 
-    files[index].name[0] = '\0';
-    files[index].data[0] = '\0';
+    directory[index].name[0] = '\0';
+    directory[index].size = 0;
+
+    fs_save_directory();
 
     print_success("File deleted.\n");
 }
@@ -1371,33 +1533,32 @@ void fs_delete(const char* name)
 
 void t_colorgreen(void)
 {
-    set_color(COLOR_GREEN);
+    set_base_color(COLOR_GREEN);
     print("setted color to green\n");
 }
 void t_colorred(void)
 {
-    set_color(COLOR_RED);
+    set_base_color(COLOR_RED);
     print("setted color to red\n");
 }
 void t_colorgray(void)
 {
-    set_color(COLOR_LIGHT_GRAY);
+    set_base_color(COLOR_LIGHT_GRAY);
     print("setted color to gray\n");
 }
 void t_colorblue(void)
 {
-    set_color(COLOR_BLUE);
+    set_base_color(COLOR_BLUE);
     print("setted color to blue\n");
 }
 void t_colorcyan(void)
 {
-    set_color(COLOR_CYAN);
+    set_base_color(COLOR_CYAN);
     print("setted color to cyan\n");
 }
 
 void t_colorsetter(void)
 {
-    print_error("!Warning! it only test command, it may not work\n");
     int chooseT;
     print("1.green\n");
     print("2.red\n");
@@ -1439,7 +1600,7 @@ void shell(void)
     {
         set_color(COLOR_CYAN);
         print("NwOS> ");
-        set_color(COLOR_LIGHT_GRAY);
+        set_color(base_color);
 
         read_line(command, 128);
 
@@ -1462,7 +1623,7 @@ void shell(void)
             print("  edit <file> <txt> - edit file\n");
             print("  delete <file> - delete file\n");
             print("  reboot - restart NwOS\n");
-            set_color(COLOR_LIGHT_GRAY);
+            set_color(base_color);
         }
 
         else if (strcmp(command, "clear") == 0)
@@ -1473,14 +1634,14 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3.5====\n");
+            print("====NwOS 1.3.6====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3.5\n");
+            print("Version: v1.3.6\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
             print("================\n");
-            set_color(COLOR_LIGHT_GRAY);
+            set_color(base_color);
         }
 
         else if (starts_with(command, "echo "))
@@ -1639,9 +1800,10 @@ void kernel_main(void)
     clear();
 
     random_init();
+    fs_load();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3.5\n");
+    print("        Welcome to NwOS 1.3.6\n");
     print("================================\n");
     set_color(COLOR_GREEN);
     print("Keyboard: OK\n");

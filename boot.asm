@@ -28,7 +28,7 @@ start:
     ; Loading kernel.bin
     ;
     ; LBA 1 = second sector of the disk
-    ; Load 16 sectors
+    ; Load 130 sectors (65 KB) so the kernel has room to grow
     ; to physical address 0x1000
 
     mov si, disk_address_packet
@@ -121,7 +121,7 @@ disk_address_packet:
     db 0x10             ; size DAP = 16 bytes
     db 0                ; reserved
 
-    dw 64               ; num of sectors
+    dw 40              ; num of sectors
 
     dw 0x1000           ; offset load
     dw 0x0000           ; segment load
