@@ -23,6 +23,7 @@ A small x86 operating system written in C and NASM.
 - Colors
 - Time
 - Automatic terminal scrolling
+- Save files (disk)
 
 ## Build from virtual box
 build:
