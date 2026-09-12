@@ -6,6 +6,7 @@ SECTIONS
 
     .text :
     {
+        *(.text.start)
         *(.text*)
     }
 
@@ -18,10 +19,11 @@ SECTIONS
     {
         *(.data*)
     }
-
-    .bss :
+    .bss (NOLOAD) :
     {
+        __bss_start = .;
         *(.bss*)
         *(COMMON)
+        __bss_end = .;
     }
 }

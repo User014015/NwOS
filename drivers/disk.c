@@ -1,8 +1,11 @@
 #include "disk.h"
+#include "../include/kernelpanic.h"
 
 /* =========================
    Disk I/O (ATA PIO, primary master, LBA28)
    ========================= */
+
+#define ATA_TIMEOUT 500000
 
 #define ATA_DATA        0x1F0
 #define ATA_FEATURES    0x1F1
@@ -20,6 +23,7 @@
 
 #define ATA_STATUS_BSY  0x80
 #define ATA_STATUS_DRQ  0x08
+#define ATA_STATUS_ERR  0x01
 
 void outb(unsigned short port, unsigned char value)
 {
@@ -51,15 +55,43 @@ unsigned short inw(unsigned short port)
 
 static void ata_wait_bsy(void)
 {
+    unsigned int timeout = ATA_TIMEOUT;
+
     while (inb(ATA_STATUS) & ATA_STATUS_BSY)
     {
+        timeout--;
+
+        if (timeout == 0)
+        {
+            KPANIC_FATAL("ATA drive not responding (BSY never cleared)");
+        }
     }
 }
 
 static void ata_wait_drq(void)
 {
-    while (!(inb(ATA_STATUS) & ATA_STATUS_DRQ))
+    unsigned int timeout = ATA_TIMEOUT;
+
+    while (1)
     {
+        unsigned char status = inb(ATA_STATUS);
+
+        if (status & ATA_STATUS_ERR)
+        {
+            KPANIC_FATAL("ATA drive reported an error (ERR set)");
+        }
+
+        if (status & ATA_STATUS_DRQ)
+        {
+            return;
+        }
+
+        timeout--;
+
+        if (timeout == 0)
+        {
+            KPANIC_FATAL("ATA drive not responding (DRQ never set)");
+        }
     }
 }
 

@@ -1,5 +1,6 @@
-#include "drivers/keyboard.h"
-#include "drivers/disk.h"
+#include "../../drivers/keyboard.h"
+#include "../../drivers/disk.h"
+#include "../../include/kernelpanic.h"
 
 /* Prototypes functions */
 
@@ -13,7 +14,11 @@ void read_line(char* buffer, int max);
 
 unsigned int rand_simple(void);
 
+void fs_load(void);
+void fs_save_directory(void);
 int random_range(int min, int max);
+
+void *memcpy(void *dest, const void *src, unsigned int n);
 
 void print_int(int number);
 void game_guess(void);
@@ -23,9 +28,8 @@ void game_coin(void);
 void game_dice(void);
 void game_higher_lower(void);
 void game_math(void);
-void fs_save_directory(void);
-void fs_load(void);
-void *memcpy(void *dest, const void *src, unsigned int n);
+void game_hangman(void);
+void game_tictactoe(void);
 
 void games_menu(void);
 int strncmp(const char* a, const char* b, int n);
@@ -35,25 +39,12 @@ void reboot(void);
 typedef unsigned short uint16_t;
 
 #define WIDTH 80
-#define HEIGHT 25
+#define HEIGHT 50
 
 #define MAX_FILES 16
 #define MAX_FILENAME 32
 #define MAX_FILE_SIZE 256
 
-/*
- * Disk-backed filesystem layout.
- *
- * boot.asm now loads up to 130 sectors for the kernel (LBA 1-130),
- * so the filesystem area starts at LBA 200 to leave a safe margin
- * for the kernel to keep growing. Make sure the .img is padded to
- * at least (FS_DATA_LBA + MAX_FILES) sectors, i.e. 218 sectors /
- * ~109 KB - padding to a full 1.44MB floppy (2880 sectors) is a
- * safe, simple choice with plenty of headroom.
- *
- *   LBA 200-201 : directory table (used flag, name, size per file)
- *   LBA 202-217 : file data, one 512-byte sector per file slot
- */
 #define FS_DIR_LBA     200
 #define FS_DIR_SECTORS 2
 #define FS_DATA_LBA    (FS_DIR_LBA + FS_DIR_SECTORS)
@@ -105,41 +96,45 @@ static volatile uint16_t* video =
 
 
 /* =========================
-   Terminal
+   Terminal (with scrollback)
    ========================= */
 
-static int cursor_x = 0;
-static int cursor_y = 0;
+#define SCROLLBACK_LINES 300
 
-#define COMMAND_HISTORY_SIZE 16
-#define COMMAND_SIZE 128
+static uint16_t line_buffer[SCROLLBACK_LINES][WIDTH];
 
-static char command_history[COMMAND_HISTORY_SIZE][COMMAND_SIZE];
+static int line_start = 0;   /* index of the oldest stored line */
+static int line_count = 0;   /* number of lines currently stored */
 
-static int history_count = 0;
-static int history_position = 0;
+static int cursor_col = 0;   /* column on the current (bottom) line */
+static int view_offset = 0;  /* 0 = live view; >0 = scrolled back N lines */
 
-void scroll(void)
+/*
+ * Appends a new blank line (used on '\n' and on line wrap),
+ * dropping the oldest stored line once the buffer is full.
+ */
+void terminal_new_line(void)
 {
-    for (int y = 1; y < HEIGHT; y++)
+    int idx;
+
+    if (line_count < SCROLLBACK_LINES)
     {
-        for (int x = 0; x < WIDTH; x++)
-        {
-            video[(y - 1) * WIDTH + x] =
-                video[y * WIDTH + x];
-        }
+        idx = (line_start + line_count) % SCROLLBACK_LINES;
+        line_count++;
+    }
+    else
+    {
+        idx = line_start;
+        line_start = (line_start + 1) % SCROLLBACK_LINES;
     }
 
-    /*
-     * Clear last string.
-     */
     for (int x = 0; x < WIDTH; x++)
     {
-        video[(HEIGHT - 1) * WIDTH + x] =
-            (uint16_t)' ' | 0x0F00;
+        line_buffer[idx][x] =
+            (uint16_t)' ' | ((uint16_t)COLOR_LIGHT_GRAY << 8);
     }
 
-    cursor_y = HEIGHT - 1;
+    cursor_col = 0;
 }
 
 void *memcpy(void *dest, const void *src, unsigned int n)
@@ -155,72 +150,101 @@ void *memcpy(void *dest, const void *src, unsigned int n)
     return dest;
 }
 
-void save_command(const char* command)
+/*
+ * Writes one cell into the current (bottom) line.
+ */
+void terminal_set_cell(int col, char c)
 {
-    if (command[0] == '\0')
-        return;
+    int idx = (line_start + line_count - 1) % SCROLLBACK_LINES;
 
-    if (history_count >= COMMAND_HISTORY_SIZE)
-    {
-        for (int i = 1; i < COMMAND_HISTORY_SIZE; i++)
-        {
-            for (int j = 0; j < COMMAND_SIZE; j++)
-            {
-                command_history[i - 1][j] =
-                    command_history[i][j];
-            }
-        }
-
-        history_count = COMMAND_HISTORY_SIZE - 1;
-    }
-
-    /*
-     * Copy command.
-     */
-    int i = 0;
-
-    while (command[i] != '\0' &&
-           i < COMMAND_SIZE - 1)
-    {
-        command_history[history_count][i] =
-            command[i];
-
-        i++;
-    }
-
-    command_history[history_count][i] = '\0';
-
-    history_count++;
-
-    history_position = history_count;
+    line_buffer[idx][col] =
+        (uint16_t)c | ((uint16_t)text_color << 8);
 }
 
-
 /*
- * Clear screen.
+ * Redraws the physical screen from the line buffer, honoring
+ * view_offset. Rows with no line yet (near boot) stay blank at
+ * the top instead of being padded at the bottom.
  */
-void clear(void)
+void render_view(void)
 {
-    for (int y = 0; y < HEIGHT; y++)
+    int shown = 0;
+    int pad = HEIGHT;
+    int first = 0;
+
+    if (line_count > 0)
+    {
+        int last = (line_count - 1) - view_offset;
+
+        if (last < 0)
+            last = 0;
+
+        first = last - (HEIGHT - 1);
+
+        if (first < 0)
+            first = 0;
+
+        shown = last - first + 1;
+        pad = HEIGHT - shown;
+    }
+
+    for (int row = 0; row < pad; row++)
     {
         for (int x = 0; x < WIDTH; x++)
         {
-            video[y * WIDTH + x] =
-                (uint16_t)' ' |
-                ((uint16_t)COLOR_LIGHT_GRAY << 8);
+            video[row * WIDTH + x] =
+                (uint16_t)' ' | ((uint16_t)COLOR_LIGHT_GRAY << 8);
         }
     }
 
-    cursor_x = 0;
-    cursor_y = 0;
+    for (int i = 0; i < shown; i++)
+    {
+        int idx = (line_start + first + i) % SCROLLBACK_LINES;
+
+        for (int x = 0; x < WIDTH; x++)
+        {
+            video[(pad + i) * WIDTH + x] = line_buffer[idx][x];
+        }
+    }
 }
 
-void clear_input(int length)
+/*
+ * Clears the screen and the whole scrollback history.
+ */
+void clear(void)
 {
-    while (length > 0)
+    line_start = 0;
+    line_count = 0;
+    view_offset = 0;
+
+    terminal_new_line();
+    render_view();
+}
+
+/*
+ * Scrolls the view up (toward older output), if there is any
+ * history above what's currently shown.
+ */
+void scroll_view_up(void)
+{
+    int max_offset = line_count > HEIGHT ? line_count - HEIGHT : 0;
+
+    if (view_offset < max_offset)
     {
-        putchar_os('\b');
-        length--;
+        view_offset++;
+        render_view();
+    }
+}
+
+/*
+ * Scrolls the view down, back toward the live bottom.
+ */
+void scroll_view_down(void)
+{
+    if (view_offset > 0)
+    {
+        view_offset--;
+        render_view();
     }
 }
 
@@ -230,45 +254,36 @@ void clear_input(int length)
  */
 void putchar_os(char c)
 {
+    view_offset = 0;
+
     if (c == '\n')
     {
-        cursor_x = 0;
-        cursor_y++;
-
-        if (cursor_y >= HEIGHT)
-            scroll();
-
+        terminal_new_line();
+        render_view();
         return;
     }
 
     if (c == '\b')
     {
-        if (cursor_x > 0)
+        if (cursor_col > 0)
         {
-            cursor_x--;
-
-            video[cursor_y * WIDTH + cursor_x] =
-                (uint16_t)' ' |
-                ((uint16_t)text_color << 8);
+            cursor_col--;
+            terminal_set_cell(cursor_col, ' ');
         }
 
+        render_view();
         return;
     }
 
-    video[cursor_y * WIDTH + cursor_x] =
-        (uint16_t)c |
-        ((uint16_t)text_color << 8);
+    terminal_set_cell(cursor_col, c);
+    cursor_col++;
 
-    cursor_x++;
-
-    if (cursor_x >= WIDTH)
+    if (cursor_col >= WIDTH)
     {
-        cursor_x = 0;
-        cursor_y++;
-
-        if (cursor_y >= HEIGHT)
-            scroll();
+        terminal_new_line();
     }
+
+    render_view();
 }
 
 
@@ -372,8 +387,6 @@ void read_line(char* buffer, int max)
 {
     int length = 0;
 
-    history_position = history_count;
-
     while (1)
     {
         int key = keyboard_getkey();
@@ -381,8 +394,6 @@ void read_line(char* buffer, int max)
         if (key == KEY_ENTER)
         {
             buffer[length] = '\0';
-
-            save_command(buffer);
 
             putchar_os('\n');
 
@@ -404,67 +415,20 @@ void read_line(char* buffer, int max)
         }
 
         /*
-         * UP
+         * UP / DOWN scroll the view through history. They never
+         * touch the input buffer, so the line being typed is
+         * untouched and reappears exactly as it was once you
+         * scroll back down (or start typing again).
          */
         if (key == KEY_UP)
         {
-            if (history_count > 0 &&
-                history_position > 0)
-            {
-                history_position--;
-
-                clear_input(length);
-
-                length = 0;
-
-                while (length < COMMAND_SIZE &&
-                    command_history[history_position][length] != '\0' &&
-                    length < max - 1)
-                {
-                    buffer[length] =
-                        command_history[history_position][length];
-
-                    putchar_os(buffer[length]);
-
-                    length++;
-                }
-
-                buffer[length] = '\0';
-            }
-
+            scroll_view_up();
             continue;
         }
 
-        /*
-         * DOWN
-         */
         if (key == KEY_DOWN)
         {
-            if (history_position < history_count)
-            {
-                history_position++;
-
-                clear_input(length);
-
-                length = 0;
-
-                if (history_position < history_count)
-                {
-                    while (command_history[history_position][length] != '\0' &&
-                           length < max - 1)
-                    {
-                        buffer[length] =
-                            command_history[history_position][length];
-
-                        putchar_os(buffer[length]);
-
-                        length++;
-                    }
-                }
-
-                buffer[length] = '\0';
-            }
-
+            scroll_view_down();
             continue;
         }
 
@@ -942,6 +906,266 @@ void game_math(void)
 }
 
 
+char to_upper_letter(char c)
+{
+    if (c >= 'a' && c <= 'z')
+    {
+        return (char)(c - 'a' + 'A');
+    }
+
+    return c;
+}
+
+void game_hangman(void)
+{
+    static const char* words[] =
+    {
+        "KERNEL", "MEMORY", "POINTER", "COMPILE",
+        "BINARY", "ARRAY", "LINKER", "BOOTLOADER"
+    };
+
+    const int word_count = 8;
+
+    const char* word = words[random_range(0, word_count - 1)];
+
+    int length = 0;
+
+    while (word[length] != '\0')
+    {
+        length++;
+    }
+
+    char revealed[32];
+
+    for (int i = 0; i < length; i++)
+    {
+        revealed[i] = '_';
+    }
+
+    revealed[length] = '\0';
+
+    char guessed[26];
+
+    for (int i = 0; i < 26; i++)
+    {
+        guessed[i] = 0;
+    }
+
+    int lives = 6;
+    int found = 0;
+
+    print_title("\n=== HANGMAN ===\n");
+    print("Guess the word, one letter at a time.\n");
+    print_error("Type quit to exit.\n\n");
+
+    while (lives > 0 && found < length)
+    {
+        print("Word: ");
+        print(revealed);
+        print("\nLives: ");
+        print_int(lives);
+        print("\n\nGuess a letter: ");
+
+        char input[8];
+
+        read_line(input, 8);
+
+        if (strcmp(input, "quit") == 0)
+        {
+            print("You left the game. The word was: ");
+            print(word);
+            putchar_os('\n');
+            return;
+        }
+
+        char c = to_upper_letter(input[0]);
+
+        if (c < 'A' || c > 'Z')
+        {
+            print_error("Please enter a single letter.\n\n");
+            continue;
+        }
+
+        int idx = c - 'A';
+
+        if (guessed[idx])
+        {
+            print_error("Already guessed that letter.\n\n");
+            continue;
+        }
+
+        guessed[idx] = 1;
+
+        int hit = 0;
+
+        for (int i = 0; i < length; i++)
+        {
+            if (word[i] == c)
+            {
+                revealed[i] = c;
+                hit = 1;
+                found++;
+            }
+        }
+
+        if (hit)
+        {
+            print_success("Good guess!\n\n");
+        }
+        else
+        {
+            lives--;
+            print_error("Wrong!\n\n");
+        }
+    }
+
+    if (found == length)
+    {
+        print_success("You win! The word was: ");
+        print(word);
+        putchar_os('\n');
+    }
+    else
+    {
+        print_error("You lose! The word was: ");
+        print(word);
+        putchar_os('\n');
+    }
+}
+
+
+void ttt_print_board(char board[9])
+{
+    print("\n");
+
+    for (int row = 0; row < 3; row++)
+    {
+        print(" ");
+        putchar_os(board[row * 3]);
+        print(" | ");
+        putchar_os(board[row * 3 + 1]);
+        print(" | ");
+        putchar_os(board[row * 3 + 2]);
+        print("\n");
+
+        if (row < 2)
+        {
+            print("---+---+---\n");
+        }
+    }
+
+    print("\n");
+}
+
+int ttt_check_win(char board[9], char player)
+{
+    int wins[8][3] =
+    {
+        {0, 1, 2}, {3, 4, 5}, {6, 7, 8},
+        {0, 3, 6}, {1, 4, 7}, {2, 5, 8},
+        {0, 4, 8}, {2, 4, 6}
+    };
+
+    for (int i = 0; i < 8; i++)
+    {
+        if (board[wins[i][0]] == player &&
+            board[wins[i][1]] == player &&
+            board[wins[i][2]] == player)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int ttt_board_full(char board[9])
+{
+    for (int i = 0; i < 9; i++)
+    {
+        if (board[i] != 'X' && board[i] != 'O')
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+void game_tictactoe(void)
+{
+    char board[9];
+
+    for (int i = 0; i < 9; i++)
+    {
+        board[i] = (char)('1' + i);
+    }
+
+    print_title("\n=== TIC-TAC-TOE ===\n");
+    print("You are X, computer is O.\n");
+    print("Enter a number 1-9 to place your mark.\n");
+
+    while (1)
+    {
+        ttt_print_board(board);
+
+        char input[8];
+
+        print("Your move: ");
+        read_line(input, 8);
+
+        int move = atoi_simple(input);
+
+        if (move < 1 || move > 9 ||
+            board[move - 1] == 'X' || board[move - 1] == 'O')
+        {
+            print_error("Invalid move.\n");
+            continue;
+        }
+
+        board[move - 1] = 'X';
+
+        if (ttt_check_win(board, 'X'))
+        {
+            ttt_print_board(board);
+            print_success("You win!\n\n");
+            return;
+        }
+
+        if (ttt_board_full(board))
+        {
+            ttt_print_board(board);
+            print("It's a draw!\n\n");
+            return;
+        }
+
+        int move_o;
+
+        do
+        {
+            move_o = random_range(0, 8);
+        }
+        while (board[move_o] == 'X' || board[move_o] == 'O');
+
+        board[move_o] = 'O';
+
+        if (ttt_check_win(board, 'O'))
+        {
+            ttt_print_board(board);
+            print_error("Computer wins!\n\n");
+            return;
+        }
+
+        if (ttt_board_full(board))
+        {
+            ttt_print_board(board);
+            print("It's a draw!\n\n");
+            return;
+        }
+    }
+}
+
+
 void games(void)
 {
     print("\nGames:\n");
@@ -950,6 +1174,8 @@ void games(void)
     print("  guessh - Guess number (hard)\n");
     print("  rps   - Rock Paper Scissors\n");
     print("  word - Guess word\n");
+    print("  hangman - Hangman\n");
+    print("  tictactoe - Tic-Tac-Toe\n");
     print("  game coin - flip a coin\n");
     print("  game dice - roll a dice\n");
     print("  game highlow - guess higher or lower\n");
@@ -1065,7 +1291,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27");
-    print("v.1.3.6");
+    print("v.1.3.7");
     set_color(base_color);
 }
 
@@ -1084,7 +1310,7 @@ void game_word(void)
         print("Answer: ");
         read_line(answer, 32);
 
-        if (strcmp(answer, "rust") == 0)
+        if (strcmp(answer, "Rust") == 0)
         {
             print_success("Correct! You win!\n");
             return;
@@ -1093,7 +1319,7 @@ void game_word(void)
         print_error("Wrong answer!\n");
     }
 
-    print_error("The answer was: rust\n");
+    print_error("The answer was: Rust\n");
 }
 
 void nwfetch(void)
@@ -1104,7 +1330,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.3.6\n");
+    print_success("   Version: 1.3.7\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1368,6 +1594,8 @@ void games_menu(void)
         print("              |  5. Dice             |\n");
         print("              |  6. Higher / Lower   |\n");
         print("              |  7. Math Quiz        |\n");
+        print("              |  8. Hangman          |\n");
+        print("              |  9. Tic-Tac-Toe      |\n");
         print("              |                      |\n");
         print("              |  0. Back             |\n");
         print("              +----------------------+\n\n");
@@ -1415,6 +1643,16 @@ void games_menu(void)
         {
             clear();
             game_math();
+        }
+        else if (strcmp(choice, "8") == 0)
+        {
+            clear();
+            game_hangman();
+        }
+        else if (strcmp(choice, "9") == 0)
+        {
+            clear();
+            game_tictactoe();
         }
         else
         {
@@ -1617,6 +1855,8 @@ void shell(void)
             print("  calc   - Calculator\n");
             print("  color  - change color\n");
             print("  fs      - list files\n");
+            print("  format  - erase all files\n");
+            print("  panic safe|fatal - test kernel panic\n");
             print("  create <file> - create file\n");
             print("  read <file> - read file\n");
             print("  write <file> <txt> - write file\n");
@@ -1634,9 +1874,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3.6====\n");
+            print("====NwOS 1.3.7====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3.6\n");
+            print("Version: v1.3.7\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -1676,6 +1916,18 @@ void shell(void)
         else if (strcmp(command, "fs") == 0)
         {
             fs_list();
+        }
+        else if (strcmp(command, "format") == 0)
+        {
+            fs_format();
+        }
+        else if (strcmp(command, "panic safe") == 0)
+        {
+            KPANIC_SAFE("Manual test panic (safe)");
+        }
+        else if (strcmp(command, "panic fatal") == 0)
+        {
+            KPANIC_FATAL("Manual test panic (fatal)");
         }
         else if (strncmp(command, "create ", 7) == 0)
         {
@@ -1778,6 +2030,14 @@ void shell(void)
         {
             game_rps();
         }
+        else if (strcmp(command, "hangman") == 0)
+        {
+            game_hangman();
+        }
+        else if (strcmp(command, "tictactoe") == 0)
+        {
+            game_tictactoe();
+        }
 
         else if (command[0] == '\0')
         {
@@ -1800,14 +2060,23 @@ void kernel_main(void)
     clear();
 
     random_init();
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("RANDOM\n");
     fs_load();
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("FILESYSTEM\n");
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("KEYBOARD\n");
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3.6\n");
+    print("        Welcome to NwOS 1.3.7\n");
     print("================================\n");
-    set_color(COLOR_GREEN);
-    print("Keyboard: OK\n");
-    set_color(COLOR_LIGHT_GRAY);
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);
     print("================");
