@@ -8,7 +8,8 @@
 ```
 # NwOS
 
-<img width="719" height="396" alt="sys" src="https://github.com/user-attachments/assets/988ce4b6-b644-4060-912e-98d1edc958b6" />
+<img width="718" height="402" alt="sys" src="https://github.com/user-attachments/assets/c5d27037-071e-4448-bf87-04b05b9481ad" />
+
 
 A small x86 operating system written in C and NASM.
 
@@ -24,41 +25,43 @@ A small x86 operating system written in C and NASM.
 - Time
 - Automatic terminal scrolling
 - Save files (disk)
+- Kernel panic Safe/Fatal
 
-## Build from virtual box
-build:
-
-make sure that you have Oracle Virtualbox
-
-Download .img
-
-open cmd
-
-type this:
-
-cd "C:\road\to\VirtualBox"
-
-then type this:
-
-VBoxManage convertfromraw "C:\road\to\nwos.img" "C:\road\to\NwOS.vdi" --format VDI
-
-it gonna create VDI file
-
-then you need to create a new machine named "NwOS" and put vdi as hard drive
+## Games
+- 1.Guess Number
+- 2.Word Game
+- 3.Rock Paper Scissors
+- 4.Coin Flip
+- 5.Dice
+- 6.Higher / Lower
+- 7.Math Quiz
+- 8.Hangman
+- 9.Tic Tac Toe
 
 ## Build from qemu
 
-download qemu from ucrt
+Download Qemu
 
-then in ucrt run this:
+Then type this:
 
-cd C:/Road/to/nwos.img
+cd C:/Path/to/nwos.img
 
 and then enter this:
 
-qemu-system-i386 -drive file=nwos.img,format=raw,index=0,media=disk
+qemu-system-i386 -drive file=NwOS.img,format=raw,index=0,media=disk
 
 ## Run
 
 Run,
+
 type command help for help
+
+## ScreenShots
+
+<img width="718" height="402" alt="sys" src="https://github.com/user-attachments/assets/71f306fe-2cac-4872-8715-89b28f99d7fc" />
+
+<img width="718" height="398" alt="kernel panic safe" src="https://github.com/user-attachments/assets/53ea5216-b964-4303-9847-a0bf846b50f6" />
+
+<img width="722" height="407" alt="kernel panic fatal" src="https://github.com/user-attachments/assets/7a2c385f-4b79-4a79-8423-158442bb3a60" />
+
+<img width="713" height="402" alt="games" src="https://github.com/user-attachments/assets/f3eff341-453f-4cb7-aa38-01bdb9666805" />
