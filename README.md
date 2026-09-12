@@ -8,6 +8,7 @@
 ```
 # NwOS
 
+<img width="719" height="396" alt="sys" src="https://github.com/user-attachments/assets/988ce4b6-b644-4060-912e-98d1edc958b6" />
 
 A small x86 operating system written in C and NASM.
 
@@ -22,6 +23,7 @@ A small x86 operating system written in C and NASM.
 - Colors
 - Time
 - Automatic terminal scrolling
+- Save files (disk)
 
 ## Build from virtual box
 build:
