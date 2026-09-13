@@ -280,7 +280,7 @@ disk_address_packet:
     db 0x10
     db 0x00
 
-    dw 50
+    dw 54
 
     dw 0x1000
     dw 0x0000

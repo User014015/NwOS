@@ -10,6 +10,7 @@ rm -f kernel.bin
 rm -f kernel_entry.o 
 rm -f boot.bin
 rm -f disk.o  
+rm -f wordgenerator.o
 
 echo Deleted all compiled files!
 goto end

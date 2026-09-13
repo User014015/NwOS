@@ -1,6 +1,7 @@
 #include "../../drivers/keyboard.h"
 #include "../../drivers/disk.h"
 #include "../../include/kernelpanic.h"
+#include "Apps/wordgenerator/wordgenerator.h"
 
 /* Prototypes functions */
 
@@ -1863,6 +1864,8 @@ void shell(void)
             print("  edit <file> <txt> - edit file\n");
             print("  delete <file> - delete file\n");
             print("  reboot - restart NwOS\n");
+            print("  random word - generate word\n");
+            print("  chat - chat with computer\n");
             set_color(base_color);
         }
 
@@ -2038,6 +2041,14 @@ void shell(void)
         {
             game_tictactoe();
         }
+        else if (strcmp(command, "random word") == 0)
+        {
+            say();
+        }
+        else if (strcmp(command, "chat") == 0)
+        {
+            chat();
+        }
 
         else if (command[0] == '\0')
         {
@@ -2058,6 +2069,11 @@ void shell(void)
 void kernel_main(void)
 {
     clear();
+
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("CLEARING...\n");
 
     random_init();
     set_color(COLOR_GREEN);

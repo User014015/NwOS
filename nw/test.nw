@@ -1,0 +1,8 @@
+#include <nwc.h>
+1A main() {
+    nw::out << "hello world!" << nw::endl;
+    1A number;
+    nw::cin >> number;
+
+    return 0;
+}
