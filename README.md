@@ -12,6 +12,7 @@
 
 
 A small x86 operating system written in C and NASM.
+(Unsupports real hardware, use qemu)
 
 ## Features
 
