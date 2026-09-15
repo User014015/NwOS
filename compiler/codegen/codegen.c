@@ -17,6 +17,8 @@
 
 #define NWO_MAGIC       "NWOB"
 #define NWO_VERSION     1
+#define NWO_FLAG_NORMAL   0x00
+#define NWO_FLAG_LOWLEVEL 0x01
 
 typedef struct
 {

@@ -1,84 +1,29 @@
 #include "keyboard.h"
 
-static int extended_key = 0;
+/* =========================================================
+   PS/2 keyboard
+   Scan code set 1
+   ========================================================= */
 
-static int shift_pressed = 0;
+#define KEYBOARD_DATA_PORT    0x60
+#define KEYBOARD_STATUS_PORT  0x64
 
+#define KEYBOARD_STATUS_OUTPUT_FULL  0x01
 
-/*
- * Regular layout
- */
-static const char keyboard_map[128] =
-{
-    0, 27,
-
-    '1','2','3','4','5','6','7','8','9','0',
-    '-','=',
-    '\b',
-    '\t',
-
-    'q','w','e','r','t','y','u','i','o','p',
-    '[',']',
-
-    '\n',
-
-    0,
-
-    'a','s','d','f','g','h','j','k','l',
-    ';','\'','`',
-
-    0,
-    '\\',
-
-    'z','x','c','v','b','n','m',
-    ',','.','/',
+#define KEYBOARD_RELEASE             0x80
 
 
-    0,
-    '*',
-    0,
-    ' '
-};
+static int shift_left  = 0;
+static int shift_right = 0;
+static int caps_lock   = 0;
 
 
-/*
- * Layout with squeezing shift
- */
-static const char keyboard_shift_map[128] =
-{
-    0, 27,
+/* =========================================================
+   I/O
+   ========================================================= */
 
-    '!','@','#','$','%','^','&','*','(',')',
-    '_','+',
-
-    '\b',
-    '\t',
-
-    'Q','W','E','R','T','Y','U','I','O','P',
-    '{','}',
-
-    '\n',
-
-    0,
-
-    'A','S','D','F','G','H','J','K','L',
-    ':','"','~',
-
-    0,
-    '|',
-
-    'Z','X','C','V','B','N','M',
-    '<','>','/',
-
-
-    0,
-    '*',
-    0,
-    ' '
-};
-
-
-static unsigned char inb(unsigned short port)
+static unsigned char kb_inb(
+    unsigned short port)
 {
     unsigned char value;
 
@@ -91,88 +36,246 @@ static unsigned char inb(unsigned short port)
     return value;
 }
 
-int keyboard_getkey(void)
+
+/* =========================================================
+   Scancode -> ASCII
+   ========================================================= */
+
+static char keymap[128] =
+{
+    0,
+
+    27,
+    '1','2','3','4','5','6','7','8','9','0',
+    '-','=',
+    '\b',
+
+    '\t',
+
+    'q','w','e','r','t','y','u','i','o','p',
+    '[',']',
+    '\n',
+
+    0,
+
+    'a','s','d','f','g','h','j','k','l',
+    ';','\'','`',
+
+    0,
+
+    '\\',
+
+    'z','x','c','v','b','n','m',
+    ',','.','/',
+
+    0,
+
+    '*',
+
+    0,
+
+    ' ',
+
+    0,
+
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0
+};
+
+
+/* =========================================================
+   Shifted symbols
+   ========================================================= */
+
+static char shifted_keymap[128] =
+{
+    0,
+
+    27,
+
+    '!','@','#','$','%','^','&','*','(',')',
+    '_','+',
+
+    '\b',
+
+    '\t',
+
+    'Q','W','E','R','T','Y','U','I','O','P',
+
+    '{','}',
+
+    '\n',
+
+    0,
+
+    'A','S','D','F','G','H','J','K','L',
+
+    ':','"','~',
+
+    0,
+
+    '|',
+
+    'Z','X','C','V','B','N','M',
+
+    '<','>','?',
+
+    0,
+
+    '*',
+
+    0,
+
+    ' ',
+
+    0,
+
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0
+};
+
+
+/* =========================================================
+   Keyboard init
+   ========================================================= */
+
+void keyboard_init(void)
 {
     /*
-     * Waiting for pressing\unpressing
+     * For the current polling implementation there is
+     * no complex controller setup required here.
      */
-    while (!(inb(0x64) & 1))
+
+    shift_left  = 0;
+    shift_right = 0;
+    caps_lock   = 0;
+}
+
+
+/* =========================================================
+   Read raw scancode
+   ========================================================= */
+
+static unsigned char keyboard_read_scancode(void)
+{
+    while (!(kb_inb(KEYBOARD_STATUS_PORT) &
+             KEYBOARD_STATUS_OUTPUT_FULL))
     {
+        /* wait */
     }
 
-    unsigned char scancode = inb(0x60);
+    return kb_inb(KEYBOARD_DATA_PORT);
+}
 
-    if (scancode == 0xE0)
+
+/* =========================================================
+   Translate one key
+   ========================================================= */
+
+int keyboard_getkey(void)
+{
+    unsigned char scancode;
+    char c;
+
+    while (1)
     {
-        extended_key = 1;
-        return KEY_NONE;
+        scancode = keyboard_read_scancode();
+
+        if (scancode == 0xE0)
+        {
+            unsigned char ext =
+                keyboard_read_scancode();
+
+            (void)ext;
+
+            continue;
+        }
+
+        /*
+         * Key release
+         */
+        if (scancode & KEYBOARD_RELEASE)
+        {
+            unsigned char make =
+                scancode & 0x7F;
+
+            if (make == 0x2A)
+                shift_left = 0;
+
+            else if (make == 0x36)
+                shift_right = 0;
+
+            continue;
+        }
+
+        /*
+         * Shift
+         */
+        if (scancode == 0x2A)
+        {
+            shift_left = 1;
+            continue;
+        }
+
+        if (scancode == 0x36)
+        {
+            shift_right = 1;
+            continue;
+        }
+
+        /*
+         * Caps Lock
+         */
+        if (scancode == 0x3A)
+        {
+            caps_lock = !caps_lock;
+            continue;
+        }
+
+        /*
+         * Special keys
+         */
+        if (scancode == 0x0E)
+            return KEY_BACKSPACE;
+
+        if (scancode == 0x0F)
+            return KEY_TAB;
+
+        if (scancode == 0x1C)
+            return KEY_ENTER;
+
+        if (scancode >= 128)
+            continue;
+
+        if (shift_left || shift_right)
+            c = shifted_keymap[scancode];
+        else
+            c = keymap[scancode];
+
+        if (c == 0)
+            continue;
+
+        /*
+         * Caps Lock
+         */
+        if (c >= 'a' && c <= 'z')
+        {
+            if (caps_lock &&
+                !(shift_left || shift_right))
+            {
+                c = (char)(c - 'a' + 'A');
+            }
+        }
+
+        if (c >= 'A' && c <= 'Z')
+        {
+            if (caps_lock &&
+                (shift_left || shift_right))
+            {
+                c = (char)(c - 'A' + 'a');
+            }
+        }
+
+        return (int)c;
     }
-
-    if (extended_key)
-    {
-        extended_key = 0;
-
-        if (scancode & 0x80)
-            return KEY_NONE;
-
-        if (scancode == 0x48)
-            return KEY_UP;
-
-        if (scancode == 0x50)
-            return KEY_DOWN;
-
-        if (scancode == 0x4B)
-            return KEY_LEFT;
-
-        if (scancode == 0x4D)
-            return KEY_RIGHT;
-    }
-    if (scancode == 0x2A)
-    {
-        shift_pressed = 1;
-        return KEY_NONE;
-    }
-
-    if (scancode == 0xAA)
-    {
-        shift_pressed = 0;
-        return KEY_NONE;
-    }
-    if (scancode == 0x36)
-    {
-        shift_pressed = 1;
-        return KEY_NONE;
-    }
-
-    if (scancode == 0xB6)
-    {
-        shift_pressed = 0;
-        return KEY_NONE;
-    }
-    if (scancode & 0x80)
-        return KEY_NONE;
-
-
-    /*
-     * Special keys
-     */
-    if (scancode == 0x1C)
-        return KEY_ENTER;
-
-    if (scancode == 0x0E)
-        return KEY_BACKSPACE;
-
-
-    /*
-     * symbol
-     */
-    if (scancode < 128)
-    {
-        if (shift_pressed)
-            return keyboard_shift_map[scancode];
-
-        return keyboard_map[scancode];
-    }
-
-    return KEY_NONE;
 }

@@ -108,14 +108,27 @@ check_edd:
 ; =========================================================
 ; Load kernel
 ;
-; Load 50 sectors (25 KB) - kernel.bin is currently exactly 40
-; sectors (20,480 bytes), so this covers it with a little room
-; to grow. Deliberately kept small and far from the ~120-sector
-; real-mode 64 KB segment-boundary limit (buffer is 0000:1000)
-; while we isolate a hang inside the int 0x13 AH=42h call at
-; larger sector counts.
+; Root cause found: the kernel was being loaded to 0000:1000
+; (physical 0x1000), which only left ~54 sectors of safe room
+; before colliding with the boot sector's own code at 0x7C00 -
+; the exact address this bootloader is executing from. Every
+; failure above 50 sectors was the kernel read overwriting the
+; running boot sector mid-transfer. kernel.bin is now 58 sectors
+; (29,240 bytes) and only going to grow further, so this can't
+; be patched with a bigger number anymore - the destination
+; itself has to move.
+;
+; New destination: segment 0x1000, offset 0x0000 -> physical
+; 0x10000 (64 KB). This is far past the boot sector, the real-
+; mode IVT/BDA, and this segment's own fresh 64 KB window means
+; up to 128 sectors can be read here without re-hitting the
+; old boundary problem. 80 sectors (40 KB) covers the current
+; kernel with real headroom to grow.
+;
+; IMPORTANT: linker.ld's origin and the protected-mode jump
+; target below must both match this address.
 ; LBA 1
-; Destination 0000:1000
+; Destination 1000:0000
 ; =========================================================
 
 
@@ -239,10 +252,11 @@ protected_mode:
 
 
     ; -----------------------------------------------------
-    ; Jump to kernel entry at 0x1000
+    ; Jump to kernel entry at 0x10000 (must match linker.ld's
+    ; origin and the DAP destination above)
     ; -----------------------------------------------------
 
-    mov eax, 0x1000
+    mov eax, 0x10000
     jmp eax
 
 
@@ -280,10 +294,10 @@ disk_address_packet:
     db 0x10
     db 0x00
 
-    dw 54
+    dw 80
 
-    dw 0x1000
-    dw 0x0000
+    dw 0x0000           ; offset
+    dw 0x1000           ; segment -> physical 0x10000
 
     dd 1
     dd 0

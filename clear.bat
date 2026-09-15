@@ -11,6 +11,7 @@ rm -f kernel_entry.o
 rm -f boot.bin
 rm -f disk.o  
 rm -f wordgenerator.o
+rm -f textredactor.o
 
 echo Deleted all compiled files!
 goto end

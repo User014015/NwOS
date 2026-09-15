@@ -1,7 +1,21 @@
 #include "../../drivers/keyboard.h"
 #include "../../drivers/disk.h"
 #include "../../include/kernelpanic.h"
+
 #include "Apps/wordgenerator/wordgenerator.h"
+#include "Apps/textredactor/textredactor.h"
+#include "nwoloader/nwo_vm.h"
+#include "nwoloader/nwo_runner.h"
+
+#include "nwo_loader.h"
+
+/*
+* MADE BY: User014015
+* Created: 28 july 2026 (v.0.1)
+* Name: NwOS
+* Github: https://github.com/User014015/NwOS
+* License: (github file: LICENSE)
+*/
 
 /* Prototypes functions */
 
@@ -11,6 +25,8 @@ void print(const char* text);
 
 void clear(void);
 
+void nwo_run(const char* filename);
+
 void read_line(char* buffer, int max);
 
 unsigned int rand_simple(void);
@@ -18,10 +34,13 @@ unsigned int rand_simple(void);
 void fs_load(void);
 void fs_save_directory(void);
 int random_range(int min, int max);
+void print_error(const char* text);
+void print_success(const char* text);
 
 void *memcpy(void *dest, const void *src, unsigned int n);
 
 void print_int(int number);
+
 void game_guess(void);
 void game_rps(void);
 void game_word(void);
@@ -34,6 +53,20 @@ void game_tictactoe(void);
 
 void games_menu(void);
 int strncmp(const char* a, const char* b, int n);
+void nwo_run(const char* filename);
+
+void redactor(const char* filename);
+int fs_read_text(
+    const char* name,
+    char* buffer,
+    unsigned int max_size
+);
+int fs_find(const char* name);
+
+int fs_read_binary(
+    const char* name,
+    unsigned char* buffer,
+    unsigned int max_size);
 
 void reboot(void);
 
@@ -44,7 +77,7 @@ typedef unsigned short uint16_t;
 
 #define MAX_FILES 16
 #define MAX_FILENAME 32
-#define MAX_FILE_SIZE 256
+#define MAX_FILE_SIZE 512
 
 #define FS_DIR_LBA     200
 #define FS_DIR_SECTORS 2
@@ -391,6 +424,20 @@ void read_line(char* buffer, int max)
     while (1)
     {
         int key = keyboard_getkey();
+
+        if (key == KEY_TAB)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (length >= max - 1)
+                    break;
+
+                buffer[length++] = ' ';
+                putchar_os(' ');
+            }
+
+            continue;
+        }
 
         if (key == KEY_ENTER)
         {
@@ -1291,8 +1338,8 @@ void Calc(void)
 void dateCr()
 {
     set_color(COLOR_WHITE);
-    print("2026.08.27");
-    print("v.1.3.7");
+    print("2026.08.27\n");
+    print("v.1.4.0\n");
     set_color(base_color);
 }
 
@@ -1331,7 +1378,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.3.7\n");
+    print_success("   Version: 1.4.0\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1689,7 +1736,7 @@ void fs_store_data(int index, const char* text, const char* success_message)
 
     if (text[i] != '\0')
     {
-        print_error("Text is too long. Maximum is 255 characters.\n");
+        print_error("Text is too long. Maximum is 512 characters.\n");
         return;
     }
 
@@ -1768,6 +1815,85 @@ void fs_delete(const char* name)
     print_success("File deleted.\n");
 }
 
+int fs_read_text(
+    const char* name,
+    char* buffer,
+    unsigned int max_size
+)
+{
+    int index;
+    unsigned char sector[512];
+    unsigned int size;
+    unsigned int copy_size;
+
+    if (buffer == 0 || max_size == 0)
+        return 0;
+
+    buffer[0] = '\0';
+
+    index = fs_find(name);
+
+    if (index == -1)
+        return 0;
+
+    ata_read_sector(
+        FS_DATA_LBA + index,
+        sector
+    );
+
+    size = directory[index].size;
+
+    /*
+     * Never copy more than the actual buffer
+     * can hold.
+     */
+    if (size >= max_size)
+        copy_size = max_size - 1;
+    else
+        copy_size = size;
+
+    for (unsigned int i = 0; i < copy_size; i++)
+    {
+        buffer[i] = (char)sector[i];
+    }
+
+    buffer[copy_size] = '\0';
+
+    return 1;
+}
+
+int fs_read_binary(
+    const char* name,
+    unsigned char* buffer,
+    unsigned int max_size)
+{
+    int index;
+
+    if (name == 0 ||
+        buffer == 0 ||
+        max_size == 0)
+    {
+        return 0;
+    }
+
+    index = fs_find(name);
+
+    if (index == -1)
+        return 0;
+
+    /*
+     * Current filesystem:
+     * one file = one 512-byte sector.
+     */
+    if (max_size > 512)
+        max_size = 512;
+
+    ata_read_sector(
+        FS_DATA_LBA + (unsigned int)index,
+        buffer);
+
+    return 1;
+}
 // colors
 
 void t_colorgreen(void)
@@ -1860,10 +1986,10 @@ void shell(void)
             print("  panic safe|fatal - test kernel panic\n");
             print("  create <file> - create file\n");
             print("  read <file> - read file\n");
-            print("  write <file> <txt> - write file\n");
-            print("  edit <file> <txt> - edit file\n");
+            print("  edit <file> - edit a file\n");
             print("  delete <file> - delete file\n");
             print("  reboot - restart NwOS\n");
+            print("  run <file.nwo> - run NWO application\n");
             print("  random word - generate word\n");
             print("  chat - chat with computer\n");
             set_color(base_color);
@@ -1877,9 +2003,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.3.7====\n");
+            print("====NwOS 1.4.0====\n");
             print("Name: NwOS\n");
-            print("Version: v1.3.7\n");
+            print("Version: v1.4.0\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -1919,6 +2045,10 @@ void shell(void)
         else if (strcmp(command, "fs") == 0)
         {
             fs_list();
+        }
+        else if (strncmp(command, "run ", 4) == 0)
+        {
+            nwo_run(command + 4);
         }
         else if (strcmp(command, "format") == 0)
         {
@@ -1966,28 +2096,6 @@ void shell(void)
                         separator + 1);
             }
         }
-        else if (strncmp(command, "edit ", 5) == 0)
-        {
-            char* separator = command + 5;
-
-            while (*separator != ' ' &&
-                   *separator != '\0')
-            {
-                separator++;
-            }
-
-            if (*separator == '\0')
-            {
-                print_error("Usage: edit <file> <text>\n");
-            }
-            else
-            {
-                *separator = '\0';
-
-                fs_edit(command + 5,
-                        separator + 1);
-            }
-        }
         else if (strcmp(command, "calc") == 0)
         {
             Calc();
@@ -1995,6 +2103,10 @@ void shell(void)
         else if (strcmp(command, "guessh") == 0)
         {
             game_guessh();
+        }
+        else if (strncmp(command, "edit ", 5) == 0)
+        {
+            redactor(command + 5);
         }
         else if (strcmp(command, "color") == 0)
         {
@@ -2091,7 +2203,7 @@ void kernel_main(void)
     print("KEYBOARD\n");
 
     print("================================\n");
-    print("        Welcome to NwOS 1.3.7\n");
+    print("        Welcome to NwOS 1.4.0\n");
     print("================================\n");
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);

@@ -1,8 +1,8 @@
 #include <nwc.h>
 1A main() {
     nw::out << "hello world!" << nw::endl;
-    1A number;
-    nw::cin >> number;
+    char hello[32];
+    nw::line(nw::cin, hello);
 
     return 0;
 }

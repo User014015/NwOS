@@ -10,7 +10,6 @@
 
 <img width="718" height="402" alt="sys" src="https://github.com/user-attachments/assets/c5d27037-071e-4448-bf87-04b05b9481ad" />
 
-
 A small x86 operating system written in C and NASM.
 (Unsupports real hardware, use qemu)
 
@@ -27,6 +26,13 @@ A small x86 operating system written in C and NASM.
 - Automatic terminal scrolling
 - Save files (disk)
 - Kernel panic Safe/Fatal
+- Compiler!
+
+## Compiler
+
+to compile File you need:
+
+learn NwC (tutorial file: NWCTutorial)
 
 ## Games
 - 1.Guess Number
@@ -56,21 +62,3 @@ qemu-system-i386 -drive file=NwOS.img,format=raw,index=0,media=disk
 Run,
 
 type command help for help
-
-## ScreenShots
-
-=======================================================================================================================================
-
-<img width="718" height="402" alt="sys" src="https://github.com/user-attachments/assets/71f306fe-2cac-4872-8715-89b28f99d7fc" />
-
-=======================================================================================================================================
-
-<img width="718" height="398" alt="kernel panic safe" src="https://github.com/user-attachments/assets/53ea5216-b964-4303-9847-a0bf846b50f6" />
-
-=======================================================================================================================================
-
-<img width="722" height="407" alt="kernel panic fatal" src="https://github.com/user-attachments/assets/7a2c385f-4b79-4a79-8423-158442bb3a60" />
-
-=======================================================================================================================================
-
-<img width="713" height="402" alt="games" src="https://github.com/user-attachments/assets/f3eff341-453f-4cb7-aa38-01bdb9666805" />
