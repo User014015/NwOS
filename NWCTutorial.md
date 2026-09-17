@@ -33,11 +33,11 @@ then run this: tools/nwimg.exe add NwOS.img NwDev/test.nw test.nw
 (make sure that: you has: file.nw, or any other file with .nw at path: NwDev/)
 
 if you compiled right: launch NwOS from qemu -> type: run:
-``` text
+
 
 run <your file name.nwo>
 
-```
+
 
 make sure that file format is .nwo to launch it
 
@@ -48,7 +48,7 @@ or you can edit .nw
 
 Basic syntax:
 
-```text
+
 
 Comments right now not supported.
 
@@ -65,5 +65,3 @@ nw::out << "Hey! << nw::endl;
 
 nw::cin >> var
 nw::line(nw::cin, var) // type all line
-
-```
