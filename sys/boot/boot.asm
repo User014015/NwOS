@@ -13,39 +13,22 @@ start:
 
     mov [boot_drive], dl
 
-    ; --- DEBUG CHECKPOINT 1: segments set up ---
     mov ah, 0x0E
     mov al, '1'
     mov bh, 0
     int 0x10
 
-; =========================================================
-; Switch to 80x50 text mode (8x8 font). Must happen here, in
-; real mode - BIOS video services (int 0x10) aren't available
-; once we're in protected mode. kernel.c's terminal assumes
-; HEIGHT = 50 rows; without this the hardware stays in the
-; BIOS default 80x25 mode and output gets rendered below the
-; visible screen (looks like a black screen, nothing ever
-; appears).
-; =========================================================
-
-    mov ax, 0x0003      ; AH=00 set video mode, AL=03 80x25 16-color text
+    mov ax, 0x0003 
     int 0x10
 
-    mov ax, 0x1112      ; AH=11 font ops, AL=12 load 8x8 font -> 80x50
+    mov ax, 0x1112  
     xor bx, bx
     int 0x10
 
-    ; --- DEBUG CHECKPOINT 2: video mode switched ---
     mov ah, 0x0E
     mov al, '2'
     mov bh, 0
     int 0x10
-
-
-; =========================================================
-; Loading message
-; =========================================================
 
     mov si, loading_message
 
@@ -59,11 +42,6 @@ print_loading:
     int 0x10
 
     jmp print_loading
-
-
-; =========================================================
-; Check EDD
-; =========================================================
 
 check_edd:
 
@@ -80,17 +58,10 @@ check_edd:
 
     test cx, 1
     jz disk_error
-
-    ; --- DEBUG CHECKPOINT 3: EDD check passed ---
     mov ah, 0x0E
     mov al, '3'
     mov bh, 0
     int 0x10
-
-
-; =========================================================
-; Reset disk
-; =========================================================
 
     xor ah, ah
     mov dl, [boot_drive]
@@ -98,39 +69,10 @@ check_edd:
 
     jc disk_error
 
-    ; --- DEBUG CHECKPOINT 4: disk reset done ---
     mov ah, 0x0E
     mov al, '4'
     mov bh, 0
     int 0x10
-
-
-; =========================================================
-; Load kernel
-;
-; Root cause found: the kernel was being loaded to 0000:1000
-; (physical 0x1000), which only left ~54 sectors of safe room
-; before colliding with the boot sector's own code at 0x7C00 -
-; the exact address this bootloader is executing from. Every
-; failure above 50 sectors was the kernel read overwriting the
-; running boot sector mid-transfer. kernel.bin is now 58 sectors
-; (29,240 bytes) and only going to grow further, so this can't
-; be patched with a bigger number anymore - the destination
-; itself has to move.
-;
-; New destination: segment 0x1000, offset 0x0000 -> physical
-; 0x10000 (64 KB). This is far past the boot sector, the real-
-; mode IVT/BDA, and this segment's own fresh 64 KB window means
-; up to 128 sectors can be read here without re-hitting the
-; old boundary problem. 80 sectors (40 KB) covers the current
-; kernel with real headroom to grow.
-;
-; IMPORTANT: linker.ld's origin and the protected-mode jump
-; target below must both match this address.
-; LBA 1
-; Destination 1000:0000
-; =========================================================
-
 
     xor ax, ax
     mov ds, ax
@@ -144,16 +86,10 @@ check_edd:
 
     jc disk_error
 
-    ; --- DEBUG CHECKPOINT 5: kernel read succeeded ---
     mov ah, 0x0E
     mov al, '5'
     mov bh, 0
     int 0x10
-
-
-; =========================================================
-; Kernel loaded message
-; =========================================================
 
     mov si, loaded_message
 
@@ -167,11 +103,6 @@ print_loaded:
     int 0x10
 
     jmp print_loaded
-
-
-; =========================================================
-; Disk error
-; =========================================================
 
 disk_error:
 
@@ -194,14 +125,7 @@ boot_hang:
     hlt
     jmp boot_hang
 
-
-; =========================================================
-; Protected mode
-; =========================================================
-
 enter_protected_mode:
-
-    ; --- DEBUG CHECKPOINT 6: about to enter protected mode ---
     mov ah, 0x0E
     mov al, '6'
     mov bh, 0
@@ -217,11 +141,6 @@ enter_protected_mode:
 
     jmp 0x08:protected_mode
 
-
-; =========================================================
-; 32-bit mode
-; =========================================================
-
 bits 32
 
 protected_mode:
@@ -236,12 +155,6 @@ protected_mode:
 
     mov esp, 0x90000
 
-
-    ; -----------------------------------------------------
-    ; Diagnostic:
-    ; write "PM OK" directly to VGA memory
-    ; -----------------------------------------------------
-
     mov edi, 0xB8000
 
     mov word [edi + 0],  'P' | (0x0A << 8)
@@ -249,12 +162,6 @@ protected_mode:
     mov word [edi + 4],  ' ' | (0x0A << 8)
     mov word [edi + 6],  'O' | (0x0A << 8)
     mov word [edi + 8],  'K' | (0x0A << 8)
-
-
-    ; -----------------------------------------------------
-    ; Jump to kernel entry at 0x10000 (must match linker.ld's
-    ; origin and the DAP destination above)
-    ; -----------------------------------------------------
 
     mov eax, 0x10000
     jmp eax
@@ -264,11 +171,6 @@ protected_hang:
     cli
     hlt
     jmp protected_hang
-
-
-; =========================================================
-; 16-bit data
-; =========================================================
 
 bits 16
 
@@ -284,28 +186,18 @@ loaded_message:
 error_message:
     db "DISK ERROR!", 13, 10, 0
 
-
-; =========================================================
-; EDD Disk Address Packet
-; =========================================================
-
 disk_address_packet:
 
     db 0x10
     db 0x00
 
-    dw 80
+    dw 90
 
-    dw 0x0000           ; offset
-    dw 0x1000           ; segment -> physical 0x10000
+    dw 0x0000  
+    dw 0x1000  
 
     dd 1
     dd 0
-
-
-; =========================================================
-; GDT
-; =========================================================
 
 gdt_start:
 
@@ -333,11 +225,6 @@ gdt_end:
 gdt_descriptor:
     dw gdt_end - gdt_start - 1
     dd gdt_start
-
-
-; =========================================================
-; Boot signature
-; =========================================================
 
 times 510 - ($ - $$) db 0
 

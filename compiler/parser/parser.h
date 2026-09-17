@@ -3,11 +3,6 @@
 
 #include "../lexer/lexer.h"
 
-
-/* =========================================================
-   AST node types
-   ========================================================= */
-
 typedef enum
 {
     AST_PROGRAM = 0,
@@ -40,11 +35,6 @@ typedef enum
 
 } ASTNodeType;
 
-
-/* =========================================================
-   Variable types
-   ========================================================= */
-
 typedef enum
 {
     TYPE_INT = 0,
@@ -59,11 +49,6 @@ typedef enum
 
 } ValueType;
 
-
-/* =========================================================
-   AST node
-   ========================================================= */
-
 typedef struct ASTNode
 {
     ASTNodeType type;
@@ -71,40 +56,13 @@ typedef struct ASTNode
     int line;
     int column;
 
-    /*
-     * Generic text storage.
-     *
-     * Examples:
-     *   variable name
-     *   function name
-     *   string contents
-     *   include name
-     */
-
     char* text;
-
-    /*
-     * Numeric values
-     */
-
     long long integer_value;
     double float_value;
 
-    /*
-     * Type information
-     */
-
     ValueType value_type;
 
-    /*
-     * Array size
-     */
-
     unsigned int array_size;
-
-    /*
-     * Child nodes
-     */
 
     struct ASTNode* left;
     struct ASTNode* right;
@@ -114,11 +72,6 @@ typedef struct ASTNode
     struct ASTNode* next;
 
 } ASTNode;
-
-
-/* =========================================================
-   Parser
-   ========================================================= */
 
 typedef struct
 {
@@ -130,11 +83,6 @@ typedef struct
     int error_count;
 
 } Parser;
-
-
-/* =========================================================
-   API
-   ========================================================= */
 
 void parser_init(Parser* parser, Lexer* lexer);
 

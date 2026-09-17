@@ -7,6 +7,13 @@
 #include "nwoloader/nwo_vm.h"
 #include "nwoloader/nwo_runner.h"
 
+#include "Apps/Games/slot.h"
+#include "Apps/Games/game_memory.h"
+#include "kernel.h"
+
+#include "Apps/fileStats/filestats.h"
+#include "Apps/baseconverter/baseconverter.h"
+
 #include "nwo_loader.h"
 
 /*
@@ -14,10 +21,8 @@
 * Created: 28 july 2026 (v.0.1)
 * Name: NwOS
 * Github: https://github.com/User014015/NwOS
-* License: (github file: LICENSE)
+* License MIT: (github file: LICENSE)
 */
-
-/* Prototypes functions */
 
 void putchar_os(char c);
 
@@ -39,6 +44,10 @@ void print_success(const char* text);
 
 void *memcpy(void *dest, const void *src, unsigned int n);
 
+void app_nwo_info(const char* filename);
+void app_hexview(const char* filename);
+static void print_hex_byte(unsigned char b);
+
 void print_int(int number);
 
 void game_guess(void);
@@ -50,6 +59,14 @@ void game_higher_lower(void);
 void game_math(void);
 void game_hangman(void);
 void game_tictactoe(void);
+
+void game_slots(void);
+void game_memory(void);
+
+void app_base_converter(void);
+void app_file_stats(void);
+
+void generate_num(void);
 
 void games_menu(void);
 int strncmp(const char* a, const char* b, int n);
@@ -101,13 +118,6 @@ typedef unsigned short uint16_t;
 #define COLOR_WHITE       15
 
 static unsigned char text_color = COLOR_LIGHT_GRAY;
-
-/*
- * base_color is the user's chosen "default" terminal color
- * (set via the color command). All the print_* helpers and
- * the shell prompt restore to base_color instead of a
- * hardcoded gray, so the chosen color actually sticks.
- */
 static unsigned char base_color = COLOR_LIGHT_GRAY;
 
 void fs_load(void);
@@ -121,32 +131,18 @@ void get_date(int* day, int* month, int* year);
 
 void print_two_digits(int value);
 
-/* =========================
-   VGA
-   ========================= */
-
 static volatile uint16_t* video =
     (volatile uint16_t*)0xB8000;
-
-
-/* =========================
-   Terminal (with scrollback)
-   ========================= */
 
 #define SCROLLBACK_LINES 300
 
 static uint16_t line_buffer[SCROLLBACK_LINES][WIDTH];
 
-static int line_start = 0;   /* index of the oldest stored line */
-static int line_count = 0;   /* number of lines currently stored */
+static int line_start = 0;
+static int line_count = 0;
 
-static int cursor_col = 0;   /* column on the current (bottom) line */
-static int view_offset = 0;  /* 0 = live view; >0 = scrolled back N lines */
-
-/*
- * Appends a new blank line (used on '\n' and on line wrap),
- * dropping the oldest stored line once the buffer is full.
- */
+static int cursor_col = 0;
+static int view_offset = 0;  
 void terminal_new_line(void)
 {
     int idx;
@@ -183,10 +179,6 @@ void *memcpy(void *dest, const void *src, unsigned int n)
 
     return dest;
 }
-
-/*
- * Writes one cell into the current (bottom) line.
- */
 void terminal_set_cell(int col, char c)
 {
     int idx = (line_start + line_count - 1) % SCROLLBACK_LINES;
@@ -194,12 +186,6 @@ void terminal_set_cell(int col, char c)
     line_buffer[idx][col] =
         (uint16_t)c | ((uint16_t)text_color << 8);
 }
-
-/*
- * Redraws the physical screen from the line buffer, honoring
- * view_offset. Rows with no line yet (near boot) stay blank at
- * the top instead of being padded at the bottom.
- */
 void render_view(void)
 {
     int shown = 0;
@@ -241,10 +227,6 @@ void render_view(void)
         }
     }
 }
-
-/*
- * Clears the screen and the whole scrollback history.
- */
 void clear(void)
 {
     line_start = 0;
@@ -254,11 +236,6 @@ void clear(void)
     terminal_new_line();
     render_view();
 }
-
-/*
- * Scrolls the view up (toward older output), if there is any
- * history above what's currently shown.
- */
 void scroll_view_up(void)
 {
     int max_offset = line_count > HEIGHT ? line_count - HEIGHT : 0;
@@ -269,10 +246,6 @@ void scroll_view_up(void)
         render_view();
     }
 }
-
-/*
- * Scrolls the view down, back toward the live bottom.
- */
 void scroll_view_down(void)
 {
     if (view_offset > 0)
@@ -281,11 +254,6 @@ void scroll_view_down(void)
         render_view();
     }
 }
-
-
-/*
- * Typing one char
- */
 void putchar_os(char c)
 {
     view_offset = 0;
@@ -319,11 +287,6 @@ void putchar_os(char c)
 
     render_view();
 }
-
-
-/*
- * Typing text.
- */
 void print(const char* text)
 {
     while (*text)
@@ -337,22 +300,11 @@ void set_color(unsigned char color)
 {
     text_color = color;
 }
-
-/*
- * Sets both the active color and the persistent base color,
- * so future resets (prompt, print_error/success/title, etc.)
- * fall back to this color instead of gray.
- */
 void set_base_color(unsigned char color)
 {
     base_color = color;
     text_color = color;
 }
-
-/* =========================
-   Strings
-   ========================= */
-
 int strcmp(const char* a, const char* b)
 {
     while (*a && *a == *b)
@@ -412,11 +364,6 @@ int atoi_simple(const char* text)
     return value;
 }
 
-
-/* =========================
-   Input
-   ========================= */
-
 void read_line(char* buffer, int max)
 {
     int length = 0;
@@ -461,13 +408,6 @@ void read_line(char* buffer, int max)
 
             continue;
         }
-
-        /*
-         * UP / DOWN scroll the view through history. They never
-         * touch the input buffer, so the line being typed is
-         * untouched and reappears exactly as it was once you
-         * scroll back down (or start typing again).
-         */
         if (key == KEY_UP)
         {
             scroll_view_up();
@@ -479,10 +419,6 @@ void read_line(char* buffer, int max)
             scroll_view_down();
             continue;
         }
-
-        /*
-         * Symbol
-         */
         if (key > 0 && key < 256)
         {
             if (length < max - 1)
@@ -527,11 +463,6 @@ void delay(unsigned int count)
         __asm__ volatile ("nop");
     }
 }
-
-
-/* =========================
-   Game
-   ========================= */
 
 static unsigned int random_seed = 123456789;
 
@@ -1339,11 +1270,9 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27\n");
-    print("v.1.4.0\n");
+    print("v.1.4.1\n");
     set_color(base_color);
 }
-
-// guess lang (not random)
 
 void game_word(void)
 {
@@ -1378,7 +1307,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.4.0\n");
+    print_success("   Version: 1.4.1\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1427,11 +1356,6 @@ void reboot(void)
     }
 }
 
-
-/* =========================
-   Filesystem (stored on disk)
-   ========================= */
-
 typedef struct __attribute__((packed))
 {
     unsigned char used;
@@ -1440,11 +1364,6 @@ typedef struct __attribute__((packed))
 } DirEntry;
 
 static DirEntry directory[MAX_FILES];
-
-/*
- * Loads the directory table from disk into memory. Call once
- * at boot so files created in earlier sessions show up again.
- */
 void fs_load(void)
 {
     unsigned char buffer[FS_DIR_SECTORS * 512];
@@ -1459,12 +1378,6 @@ void fs_load(void)
     for (int i = 0; i < MAX_FILES; i++)
     {
         directory[i] = disk_entries[i];
-
-        /*
-         * A blank / never-formatted image reads back as garbage,
-         * not necessarily zero. Only trust "used" if it's exactly
-         * 1, so noise on disk doesn't look like real files.
-         */
         if (directory[i].used != 1)
         {
             directory[i].used = 0;
@@ -1473,11 +1386,6 @@ void fs_load(void)
         }
     }
 }
-
-/*
- * Writes the whole directory table back to disk. Called after
- * every create/write/edit/delete so changes survive a reboot.
- */
 void fs_save_directory(void)
 {
     unsigned char buffer[FS_DIR_SECTORS * 512];
@@ -1494,11 +1402,6 @@ void fs_save_directory(void)
         ata_write_sector(FS_DIR_LBA + s, buffer + s * 512);
     }
 }
-
-/*
- * Wipes the filesystem area on disk. Use this once on a fresh
- * image, or to recover from a corrupted directory table.
- */
 void fs_format(void)
 {
     unsigned char empty[512];
@@ -1534,6 +1437,104 @@ int fs_find(const char* name)
     }
 
     return -1;
+}
+
+int fs_read_binary(
+    const char* name,
+    unsigned char* buffer,
+    unsigned int max_size
+);
+static void print_hex_byte(unsigned char b)
+{
+    const char hex[] = "0123456789ABCDEF";
+    putchar_os(hex[(b >> 4) & 0x0F]);
+    putchar_os(hex[b & 0x0F]);
+}
+void app_hexview(const char* filename)
+{
+    static unsigned char buffer[512];
+
+    if (!filename || filename[0] == '\0')
+    {
+        print_error("Usage: hexview <filename>\n");
+        return;
+    }
+
+    if (!fs_read_binary(filename, buffer, sizeof(buffer)))
+    {
+        print_error("File not found or read error.\n");
+        return;
+    }
+
+    print_success("\n--- HEX DUMP: ");
+    print(filename);
+    print(" ---\n\n");
+
+    print("OFFSET   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  | ASCII\n");
+    print("-------  -----------------------------------------------  | ----------------\n");
+
+    for (int offset = 0; offset < 512; offset += 16)
+    {
+        print_hex_byte((offset >> 8) & 0xFF);
+        print_hex_byte(offset & 0xFF);
+        print("     ");
+        for (int i = 0; i < 16; i++)
+        {
+            print_hex_byte(buffer[offset + i]);
+            putchar_os(' ');
+        }
+
+        print(" | ");
+        for (int i = 0; i < 16; i++)
+        {
+            unsigned char c = buffer[offset + i];
+            if (c >= 32 && c <= 126)
+            {
+                putchar_os((char)c);
+            }
+            else
+            {
+                putchar_os('.');
+            }
+        }
+
+        putchar_os('\n');
+    }
+
+    print_success("\n--- END OF DUMP ---\n\n");
+}
+void app_nwo_info(const char* filename)
+{
+    static unsigned char buffer[512];
+
+    if (!filename || filename[0] == '\0')
+    {
+        print_error("Usage: nwocheck <file.nwo>\n");
+        return;
+    }
+
+    if (!fs_read_binary(filename, buffer, sizeof(buffer)))
+    {
+        print_error("Failed to read NWO binary.\n");
+        return;
+    }
+
+    print_success("\n=== NWO EXECUTABLE INSPECTOR ===\n");
+    print("File: ");
+    print(filename);
+    print("\n\nFirst 16 Opcodes / Raw Bytes:\n[ ");
+
+    for (int i = 0; i < 16; i++)
+    {
+        print_hex_byte(buffer[i]);
+        putchar_os(' ');
+    }
+    print("]\n\n");
+
+    print("Entry Opcode / Byte: 0x");
+    print_hex_byte(buffer[0]);
+    print("\nStatus: Valid binary image loaded into memory.\n");
+    print("===============================\n\n");
 }
 
 void fs_create(const char* name)
@@ -1618,6 +1619,27 @@ void fs_list(void)
     putchar_os('\n');
 }
 
+void generate_num(void) {
+    while (1) {
+        unsigned int random_num = random_range(1, 100);
+        print("Generated random number: ");
+        set_color(COLOR_GREEN);
+        print_int(random_num);
+        set_color(base_color);
+        print("\n");
+        char ag[5];
+        print("Do you want again? y/n\n");
+        read_line(ag, 5);
+        if (strcmp(ag, "y") == 0) { }
+        else if (strcmp(ag, "n") == 0) {
+            break;
+        }
+        else {
+            print_error("Invalid command! automaticaly 'y'\n");
+        }
+    }
+}
+
 void games_menu(void)
 {
     char choice[8];
@@ -1644,6 +1666,8 @@ void games_menu(void)
         print("              |  7. Math Quiz        |\n");
         print("              |  8. Hangman          |\n");
         print("              |  9. Tic-Tac-Toe      |\n");
+        print("              |  10. Game memory     |\n");
+        print("              |  11. Game Slot       |\n");
         print("              |                      |\n");
         print("              |  0. Back             |\n");
         print("              +----------------------+\n\n");
@@ -1702,11 +1726,39 @@ void games_menu(void)
             clear();
             game_tictactoe();
         }
+        else if (strcmp(choice, "10") == 0)
+        {
+            clear();
+            game_memory();
+        }
+        else if (strcmp(choice, "11") == 0)
+        {
+            clear();
+            game_slots();
+        }
         else
         {
             print_error("\nInvalid choice.\n");
         }
     }
+}
+
+void apps_list() {
+    print("                 o-------------------------o\n");
+    print("                 |                         |\n");
+    print("                 |        1.Filestats      |\n");
+    print("                 |        2.base converter |\n");
+    print("                 |                         |\n");
+    print("                 |                         |\n");
+    print("                 |                         |\n");
+    print("                 |                         |\n");
+    print("                 |       0.exit            |\n");
+    print("                 o-------------------------o\n");
+    char choose[5];
+    read_line(choose, 5);
+    if (strcmp(choose, "1") == 0) { clear(); app_file_stats(); }
+    else if (strcmp(choose, "2") == 0) { clear(); app_base_converter(); }
+    else if (strcmp(choose, "0") == 0) {}
 }
 
 void fs_store_data(int index, const char* text, const char* success_message)
@@ -1842,11 +1894,6 @@ int fs_read_text(
     );
 
     size = directory[index].size;
-
-    /*
-     * Never copy more than the actual buffer
-     * can hold.
-     */
     if (size >= max_size)
         copy_size = max_size - 1;
     else
@@ -1880,11 +1927,6 @@ int fs_read_binary(
 
     if (index == -1)
         return 0;
-
-    /*
-     * Current filesystem:
-     * one file = one 512-byte sector.
-     */
     if (max_size > 512)
         max_size = 512;
 
@@ -1894,7 +1936,6 @@ int fs_read_binary(
 
     return 1;
 }
-// colors
 
 void t_colorgreen(void)
 {
@@ -1953,10 +1994,6 @@ void t_colorsetter(void)
     }
 }
 
-/* =========================
-   Shell
-   ========================= */
-
 void shell(void)
 {
     char command[128];
@@ -1990,6 +2027,10 @@ void shell(void)
             print("  delete <file> - delete file\n");
             print("  reboot - restart NwOS\n");
             print("  run <file.nwo> - run NWO application\n");
+            print("  apps - List of apps\n");
+            print("  generate num - generate num\n");
+            print("  hexview - hex byte map\n");
+            print("  nwocheck - check OPcodes\n");
             print("  random word - generate word\n");
             print("  chat - chat with computer\n");
             set_color(base_color);
@@ -2003,9 +2044,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.4.0====\n");
+            print("====NwOS 1.4.1====\n");
             print("Name: NwOS\n");
-            print("Version: v1.4.0\n");
+            print("Version: v1.4.1\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -2074,6 +2115,14 @@ void shell(void)
         {
             fs_delete(command + 7);
         }
+        else if (strncmp(command, "hexview ", 8) == 0)
+        {
+            app_hexview(command + 8);
+        }
+        else if (strncmp(command, "nwocheck ", 9) == 0)
+        {
+            app_nwo_info(command + 9);
+        }
         else if (strncmp(command, "write ", 6) == 0)
         {
             char* separator = command + 6;
@@ -2124,6 +2173,14 @@ void shell(void)
         {
             game_dice();
         }
+        else if (strcmp(command, "generate num") == 0)
+        {
+            generate_num();
+        }
+        else if (strcmp(command, "apps") == 0)
+        {
+            apps_list();
+        }
         else if (strcmp(command, "game highlow") == 0)
         {
             game_higher_lower();
@@ -2173,18 +2230,10 @@ void shell(void)
     }
 }
 
-
-/* =========================
-   Kernel
-   ========================= */
-
 void kernel_main(void)
 {
     clear();
 
-    set_color(COLOR_GREEN);
-    print("[OK] ");
-    set_color(base_color);
     print("CLEARING...\n");
 
     random_init();
@@ -2201,9 +2250,13 @@ void kernel_main(void)
     print("[OK] ");
     set_color(base_color);
     print("KEYBOARD\n");
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("COMPILER\n");
 
     print("================================\n");
-    print("        Welcome to NwOS 1.4.0\n");
+    print("        Welcome to NwOS 1.4.1\n");
     print("================================\n");
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);

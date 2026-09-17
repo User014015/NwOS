@@ -1,11 +1,6 @@
 #include <string.h>
 #include "lexer.h"
 
-
-/* =========================================================
-   Small internal helpers
-   ========================================================= */
-
 static int is_digit(char c)
 {
     return c >= '0' && c <= '9';
@@ -84,11 +79,6 @@ static Token make_token(TokenType type, int line, int column)
     return token;
 }
 
-
-/* =========================================================
-   Skip whitespace and comments
-   ========================================================= */
-
 static void skip_whitespace(Lexer* lexer)
 {
     while (1)
@@ -108,11 +98,6 @@ static void skip_whitespace(Lexer* lexer)
     }
 }
 
-
-/* =========================================================
-   Read identifier / keyword
-   ========================================================= */
-
 static Token read_identifier(Lexer* lexer)
 {
     int line = lexer->line;
@@ -125,11 +110,6 @@ static Token read_identifier(Lexer* lexer)
         token_add_char(&token, current_char(lexer));
         advance(lexer);
     }
-
-
-    /* =====================================================
-       Keywords
-       ===================================================== */
 
     if (strcmp(token.text, "return") == 0)
         token.type = TOKEN_RETURN;
@@ -228,11 +208,6 @@ static Token read_identifier(Lexer* lexer)
     return token;
 }
 
-
-/* =========================================================
-   Read numbers
-   ========================================================= */
-
 static Token read_number(Lexer* lexer)
 {
     int line = lexer->line;
@@ -245,14 +220,6 @@ static Token read_number(Lexer* lexer)
         token_add_char(&token, current_char(lexer));
         advance(lexer);
     }
-
-
-    /*
-     * Float:
-     *
-     * 1.3
-     * 1.3f
-     */
 
     if (current_char(lexer) == '.')
     {
@@ -278,31 +245,17 @@ static Token read_number(Lexer* lexer)
     return token;
 }
 
-
-/* =========================================================
-   Read string
-   ========================================================= */
-
 static Token read_string(Lexer* lexer)
 {
     int line = lexer->line;
     int column = lexer->column;
 
     Token token = make_token(TOKEN_STRING, line, column);
-
-    /* Skip opening quote */
     advance(lexer);
 
     while (current_char(lexer) != '\0' &&
            current_char(lexer) != '"')
     {
-        /*
-         * Escape sequences.
-         *
-         * We keep them inside the token for now.
-         * The parser/code generator will interpret them later.
-         */
-
         if (current_char(lexer) == '\\')
         {
             token_add_char(&token, current_char(lexer));
@@ -332,20 +285,12 @@ static Token read_string(Lexer* lexer)
 
     return token;
 }
-
-
-/* =========================================================
-   Read character
-   ========================================================= */
-
 static Token read_char(Lexer* lexer)
 {
     int line = lexer->line;
     int column = lexer->column;
 
     Token token = make_token(TOKEN_CHAR, line, column);
-
-    /* Skip opening ' */
     advance(lexer);
 
     if (current_char(lexer) == '\\')
@@ -376,11 +321,6 @@ static Token read_char(Lexer* lexer)
 
     return token;
 }
-
-
-/* =========================================================
-   Token type name (for debug/error printing)
-   ========================================================= */
 
 const char* token_type_name(TokenType type)
 {
@@ -477,11 +417,6 @@ const char* token_type_name(TokenType type)
     }
 }
 
-
-/* =========================================================
-   Lexer initialization
-   ========================================================= */
-
 void lexer_init(Lexer* lexer, const char* source)
 {
     lexer->source = source;
@@ -493,11 +428,6 @@ void lexer_init(Lexer* lexer, const char* source)
     lexer->last_type = TOKEN_EOF;
 }
 
-
-/* =========================================================
-   Main lexer
-   ========================================================= */
-
 static Token lexer_next_impl(Lexer* lexer)
 {
     skip_whitespace(lexer);
@@ -507,17 +437,10 @@ static Token lexer_next_impl(Lexer* lexer)
 
     char c = current_char(lexer);
 
-    /* EOF */
-
     if (c == '\0')
     {
         return make_token(TOKEN_EOF, line, column);
     }
-
-
-    /* =====================================================
-       #include
-       ===================================================== */
 
     if (c == '#')
     {
@@ -537,18 +460,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
         return token;
     }
-
-
-    /* =====================================================
-       Header <nwc.h>
-
-       Only valid directly after a #include token - otherwise
-       '<' is the start of <, <=, or << (handled further down).
-       Without this check, a bare '<' anywhere (e.g. "x < 10" or
-       "out << x") would be swallowed as a runaway header token
-       hunting for a '>' that may never come, eating the rest of
-       the file.
-       ===================================================== */
 
     if (c == '<' && lexer->last_type == TOKEN_INCLUDE)
     {
@@ -577,29 +488,13 @@ static Token lexer_next_impl(Lexer* lexer)
         return token;
     }
 
-
-    /* =====================================================
-       Identifier / keyword
-       ===================================================== */
-
     if (is_letter(c))
     {
         return read_identifier(lexer);
     }
 
-
-    /* =====================================================
-       Number
-       ===================================================== */
-
     if (is_digit(c))
     {
-        /*
-         * NwLang special integer type:
-         *
-         * 1A
-         */
-
         if (c == '1' && peek_char(lexer) == 'A')
         {
             Token token = make_token(
@@ -620,30 +515,15 @@ static Token lexer_next_impl(Lexer* lexer)
         return read_number(lexer);
     }
 
-
-    /* =====================================================
-       String
-       ===================================================== */
-
     if (c == '"')
     {
         return read_string(lexer);
     }
 
-
-    /* =====================================================
-       Character
-       ===================================================== */
-
     if (c == '\'')
     {
         return read_char(lexer);
     }
-
-
-    /* =====================================================
-       ::
-       ===================================================== */
 
     if (c == ':' && peek_char(lexer) == ':')
     {
@@ -657,11 +537,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
         return token;
     }
-
-
-    /* =====================================================
-       <<
-       ===================================================== */
 
     if (c == '<' && peek_char(lexer) == '<')
     {
@@ -680,11 +555,6 @@ static Token lexer_next_impl(Lexer* lexer)
         return token;
     }
 
-
-    /* =====================================================
-       >>
-       ===================================================== */
-
     if (c == '>' && peek_char(lexer) == '>')
     {
         Token token = make_token(
@@ -701,11 +571,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
         return token;
     }
-
-
-    /* =====================================================
-       ==
-       ===================================================== */
 
     if (c == '=' && peek_char(lexer) == '=')
     {
@@ -724,11 +589,6 @@ static Token lexer_next_impl(Lexer* lexer)
         return token;
     }
 
-
-    /* =====================================================
-       !=
-       ===================================================== */
-
     if (c == '!' && peek_char(lexer) == '=')
     {
         Token token = make_token(
@@ -745,11 +605,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
         return token;
     }
-
-
-    /* =====================================================
-       &&
-       ===================================================== */
 
     if (c == '&' && peek_char(lexer) == '&')
     {
@@ -768,11 +623,6 @@ static Token lexer_next_impl(Lexer* lexer)
         return token;
     }
 
-
-    /* =====================================================
-       ||
-       ===================================================== */
-
     if (c == '|' && peek_char(lexer) == '|')
     {
         Token token = make_token(
@@ -789,11 +639,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
         return token;
     }
-
-
-    /* =====================================================
-       <=
-       ===================================================== */
 
     if (c == '<' && peek_char(lexer) == '=')
     {
@@ -812,11 +657,6 @@ static Token lexer_next_impl(Lexer* lexer)
         return token;
     }
 
-
-    /* =====================================================
-       >=
-       ===================================================== */
-
     if (c == '>' && peek_char(lexer) == '=')
     {
         Token token = make_token(
@@ -833,11 +673,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
         return token;
     }
-
-
-    /* =====================================================
-       Single-character tokens
-       ===================================================== */
 
     Token token;
 
@@ -933,13 +768,6 @@ static Token lexer_next_impl(Lexer* lexer)
 
     return token;
 }
-
-
-/* =========================================================
-   Public entry point - wraps lexer_next_impl so last_type is
-   always kept up to date, regardless of which of the many
-   return points inside it produced the token.
-   ========================================================= */
 
 Token lexer_next(Lexer* lexer)
 {

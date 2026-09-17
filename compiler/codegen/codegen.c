@@ -122,8 +122,20 @@ typedef enum
     OP_CALL         = 0x72,   /* u32 name */
     OP_RETURN       = 0x73,
     OP_RETURN_VOID  = 0x74,
+    OP_MOD          = 0x34,
 
-    /* program */
+    OP_AND          = 0x46,
+    OP_OR           = 0x47,
+    OP_NOT          = 0x48,
+
+    OP_JUMP         = 0x80,
+    OP_JUMP_FALSE   = 0x81,
+
+    OP_DUP          = 0x16,
+
+    OP_BREAK        = 0x82,
+    OP_CONTINUE     = 0x83,
+
     OP_HALT         = 0xFF
 
 } OpCode;
@@ -157,7 +169,6 @@ static void cg_binary(Codegen* cg, ASTNode* node)
         return;
     }
 
-    /* левый, правый, потом операция */
     cg_expression(cg, node->left);
     cg_expression(cg, node->right);
 
@@ -447,8 +458,6 @@ static void cg_statement(Codegen* cg, ASTNode* node)
 }
 
 
-// functions
-
 static void cg_function(Codegen* cg, ASTNode* node)
 {
     if (node->text == NULL)
@@ -527,7 +536,6 @@ static int cg_write_header(
     b[3] = (unsigned char)((data_size >> 24) & 0xFF);
     if (fwrite(b, 1, 4, f) != 4) return 0;
 
-    /* entry point = 0 */
     b[0] = b[1] = b[2] = b[3] = 0;
     if (fwrite(b, 1, 4, f) != 4) return 0;
 

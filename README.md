@@ -26,7 +26,7 @@ A small x86 operating system written in C and NASM.
 - Automatic terminal scrolling
 - Save files (disk)
 - Kernel panic Safe/Fatal
-- Compiler!
+- Compiler
 
 ## Compiler
 
@@ -62,3 +62,9 @@ qemu-system-i386 -drive file=NwOS.img,format=raw,index=0,media=disk
 Run,
 
 type command help for help
+
+## NwC
+
+Nwc - its a compiler that works in NwOS
+
+![NwC Logo](docs/nwc-logo.svg)

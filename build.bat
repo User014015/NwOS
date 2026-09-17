@@ -22,6 +22,10 @@ if errorlevel 1 goto error
 echo [3/14] Compiling kernel...
 
 clang --target=i386-pc-none-elf -m32 -ffreestanding -fno-stack-protector -fno-pic -c sys/kernel/kernel.c -o kernel.o
+clang --target=i386-pc-none-elf -m32 -ffreestanding -fno-stack-protector -fno-pic -c sys/kernel/Apps/Games/slot.c -o slot.o
+clang --target=i386-pc-none-elf -m32 -ffreestanding -fno-stack-protector -fno-pic -c sys/kernel/Apps/Games/game_memory.c -o gamememory.o
+clang --target=i386-pc-none-elf -m32 -ffreestanding -fno-stack-protector -fno-pic -c sys/kernel/Apps/fileStats/filestats.c -o filestats.o
+clang --target=i386-pc-none-elf -m32 -ffreestanding -fno-stack-protector -fno-pic -c sys/kernel/Apps/baseconverter/baseconverter.c -o baseconverter.o
 
 if errorlevel 1 goto error
 
@@ -83,8 +87,7 @@ if errorlevel 1 goto error
 
 
 echo [12/14] Linking...
-
-ld.lld -m elf_i386 -T linker.ld kernel_entry.o kernel.o keyboard.o disk.o kernelpanic.o wordgenerator.o textredactor.o nwo_loader.o nwo_vm.o nwo_runner.o -o kernel.elf
+ld.lld -m elf_i386 -T linker.ld kernel_entry.o kernel.o keyboard.o disk.o kernelpanic.o wordgenerator.o textredactor.o nwo_loader.o nwo_vm.o nwo_runner.o slot.o gamememory.o filestats.o baseconverter.o -o kernel.elf
 
 if errorlevel 1 goto error
 

@@ -2,44 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// clang tools/nwimg.c -o tools/nwimg.exe
-//
-// tools\nwimg.exe add NwOS.img nw/test.nw NwDev/test.nw
-
-// import nwo
-// tools\nwimg.exe add NwOS.img nw\test.nwo NwApps/test.nwo
-
-// import nw
-// tools\nwimg.exe add NwOS.img nw\test.nw NwDev/test.nw
-
-
-/*
- * ============================================================
- * NwOS image tool
- * ============================================================
- *
- * Current NwOS filesystem:
- *
- *   LBA 200-201 : directory
- *   LBA 202+    : file data
- *
- * Current directory entry:
- *
- *   used      1 byte
- *   name     32 bytes
- *   size      4 bytes
- *
- * One file currently occupies one 512-byte sector.
- *
- * This tool ONLY operates on NwOS.img files.
- * It never opens physical Windows disks.
- */
-
-
-/* ============================================================
-   Filesystem constants
-   ============================================================ */
-
 #define SECTOR_SIZE     512
 
 #define FS_DIR_LBA      200
@@ -48,11 +10,6 @@
 
 #define MAX_FILES       16
 #define MAX_FILENAME    32
-
-
-/* ============================================================
-   Directory entry
-   ============================================================ */
 
 #pragma pack(push, 1)
 
@@ -67,11 +24,6 @@ typedef struct
 } DirEntry;
 
 #pragma pack(pop)
-
-
-/* ============================================================
-   Helpers
-   ============================================================ */
 
 static void write_u32_le(
     FILE* f,
@@ -97,11 +49,6 @@ static unsigned int read_u32_le(
         ((unsigned int)b[2] << 16) |
         ((unsigned int)b[3] << 24);
 }
-
-
-/* ============================================================
-   Read whole directory
-   ============================================================ */
 
 static int read_directory(
     FILE* image,
@@ -141,11 +88,6 @@ static int read_directory(
 
     return 1;
 }
-
-
-/* ============================================================
-   Write whole directory
-   ============================================================ */
 
 static int write_directory(
     FILE* image,
@@ -193,11 +135,6 @@ static int write_directory(
     return 1;
 }
 
-
-/* ============================================================
-   Find entry
-   ============================================================ */
-
 static int find_entry(
     DirEntry* directory,
     const char* name)
@@ -218,11 +155,6 @@ static int find_entry(
     return -1;
 }
 
-
-/* ============================================================
-   Find free slot
-   ============================================================ */
-
 static int find_free_entry(
     DirEntry* directory)
 {
@@ -236,11 +168,6 @@ static int find_free_entry(
 
     return -1;
 }
-
-
-/* ============================================================
-   Read host file
-   ============================================================ */
 
 static unsigned char* read_host_file(
     const char* path,
@@ -338,11 +265,6 @@ static unsigned char* read_host_file(
     return data;
 }
 
-
-/* ============================================================
-   ADD
-   ============================================================ */
-
 static int add_file(
     const char* image_path,
     const char* host_path,
@@ -386,10 +308,6 @@ static int add_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Do not overwrite an existing file silently.
-     */
     index =
         find_entry(
             directory,
@@ -405,10 +323,6 @@ static int add_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Find free slot.
-     */
     index =
         find_free_entry(
             directory);
@@ -422,10 +336,6 @@ static int add_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Read host file.
-     */
     data =
         read_host_file(
             host_path,
@@ -436,10 +346,6 @@ static int add_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Name must fit.
-     */
     if (strlen(nwos_name) >=
         MAX_FILENAME)
     {
@@ -451,10 +357,6 @@ static int add_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Prepare directory entry.
-     */
     memset(
         &directory[index],
         0,
@@ -468,14 +370,6 @@ static int add_file(
 
     directory[index].size =
         size;
-
-    /*
-     * Current filesystem:
-     *
-     *     slot 0 -> LBA 202
-     *     slot 1 -> LBA 203
-     *     ...
-     */
     offset =
         ((unsigned long)FS_DATA_LBA +
          (unsigned long)index)
@@ -509,10 +403,6 @@ static int add_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Save directory.
-     */
     if (!write_directory(
             image,
             directory))
@@ -538,11 +428,6 @@ static int add_file(
 
     return 1;
 }
-
-
-/* ============================================================
-   EXTRACT
-   ============================================================ */
 
 static int extract_file(
     const char* image_path,
@@ -688,11 +573,6 @@ static int extract_file(
     return 1;
 }
 
-
-/* ============================================================
-   LIST
-   ============================================================ */
-
 static int list_files(
     const char* image_path)
 {
@@ -755,11 +635,6 @@ static int list_files(
     return 1;
 }
 
-
-/* ============================================================
-   DELETE
-   ============================================================ */
-
 static int delete_file(
     const char* image_path,
     const char* nwos_name)
@@ -812,10 +687,6 @@ static int delete_file(
         fclose(image);
         return 0;
     }
-
-    /*
-     * Clear data sector.
-     */
     memset(
         empty,
         0,
@@ -840,10 +711,6 @@ static int delete_file(
         1,
         SECTOR_SIZE,
         image);
-
-    /*
-     * Clear directory entry.
-     */
     memset(
         &directory[index],
         0,
@@ -865,11 +732,6 @@ static int delete_file(
 
     return 1;
 }
-
-
-/* ============================================================
-   Help
-   ============================================================ */
 
 static void usage(void)
 {
@@ -912,11 +774,6 @@ static void usage(void)
 
     printf("\n");
 }
-
-
-/* ============================================================
-   Main
-   ============================================================ */
 
 int main(
     int argc,

@@ -2,12 +2,6 @@
 #include "../../kernel.h"
 
 #include "../../../../drivers/keyboard.h"
-
-
-/* =========================================================
-   Kernel functions
-   ========================================================= */
-
 void print(const char* text);
 void print_int(int number);
 void print_error(const char* text);
@@ -29,36 +23,8 @@ int fs_read_text(
     unsigned int max_size
 );
 
-/*
- * Current filesystem API.
- *
- * fs_create() creates a file.
- * fs_write() replaces its content.
- * fs_list(), fs_read(), etc. already exist in kernel.c.
- */
-
 void fs_create(const char* name);
 void fs_write(const char* name, const char* text);
-
-
-/* =========================================================
-   Editor limits
-   ========================================================= */
-
-/*
- * First version:
- *
- * 32 lines
- * 120 characters per line
- *
- * Total buffer:
- *
- * 32 * 121 = 3872 bytes
- *
- * The editor itself can hold this much, but a saved file is
- * still limited by kernel.c's MAX_FILE_SIZE (511 usable bytes
- * + a null terminator).
- */
 
 #define REDACTOR_MAX_LINES 32
 #define REDACTOR_LINE_SIZE 121
@@ -72,11 +38,6 @@ static char editor_buffer[
 
 
 static int editor_lines = 0;
-
-
-/* =========================================================
-   Editor helpers
-   ========================================================= */
 
 static void editor_clear_buffer(void)
 {
@@ -101,12 +62,6 @@ static void editor_load_file(const char* filename)
     int column = 0;
 
     editor_clear_buffer();
-
-    /*
-     * File doesn't exist.
-     *
-     * Start with an empty editor.
-     */
     if (!fs_read_text(
             filename,
             file_data,
@@ -114,10 +69,6 @@ static void editor_load_file(const char* filename)
     {
         return;
     }
-
-    /*
-     * Convert file text into editor lines.
-     */
     while (
         file_data[i] != '\0' &&
         line < REDACTOR_MAX_LINES
@@ -141,10 +92,6 @@ static void editor_load_file(const char* filename)
         editor_buffer[line][column] = '\0';
 
         line++;
-
-        /*
-         * Skip newline.
-         */
         if (file_data[i] == '\n')
             i++;
     }
@@ -187,20 +134,7 @@ static void editor_show(const char* filename)
     print("sys/edit <N>   - edit an existing line\n");
     print("--------------------------------\n");
 }
-
-
-/*
- * We need this locally because redactor.c is not part of
- * the terminal implementation.
- */
-
 void putchar_os(char c);
-
-
-/* =========================================================
-   Build one text buffer
-   ========================================================= */
-
 static int editor_build_text(
     char* output,
     unsigned int max_size)
@@ -230,11 +164,6 @@ static int editor_build_text(
             position++;
             j++;
         }
-
-        /*
-         * Add newline between lines.
-         */
-
         if (i < editor_lines - 1)
         {
             if (position >= max_size - 1)
@@ -252,11 +181,6 @@ static int editor_build_text(
 
     return 1;
 }
-
-
-/* =========================================================
-   Save
-   ========================================================= */
 
 static int editor_save(const char* filename)
 {
@@ -284,39 +208,14 @@ static int editor_save(const char* filename)
     return 1;
 }
 
-
-/* =========================================================
-   Editor
-   ========================================================= */
-
 void redactor(const char* filename)
 {
     char input[REDACTOR_LINE_SIZE];
-
-    /*
-     * load existing file
-     * if it doesnt exist editor starts empty
-     */
     editor_load_file(filename);
 
     while (1)
     {
-        /*
-         * Redraw the file's current content (existing lines
-         * plus anything typed so far this session) before every
-         * prompt. Without this, reopening a file that already
-         * has lines in it just silently continues numbering
-         * from the end with no sign the earlier lines exist.
-         */
         editor_show(filename);
-
-        /*
-         * -------------------------------------------------
-         * If the line limit has been reached, we still
-         * accept editor commands.
-         * -------------------------------------------------
-         */
-
         if (editor_lines >= REDACTOR_MAX_LINES)
         {
             print_error(
@@ -336,10 +235,6 @@ void redactor(const char* filename)
         }
         else
         {
-            /*
-             * Normal source input
-             */
-
             print_int(editor_lines + 1);
             print(" | ");
 
@@ -348,11 +243,6 @@ void redactor(const char* filename)
                 REDACTOR_LINE_SIZE
             );
         }
-
-
-        /* =================================================
-           sys/exit
-           ================================================= */
 
         if (strcmp(input, "sys/exit") == 0)
         {
@@ -364,12 +254,6 @@ void redactor(const char* filename)
 
             return;
         }
-
-
-        /* =================================================
-           sys/exit/save
-           ================================================= */
-
         if (strcmp(input, "sys/exit/save") == 0)
         {
             if (editor_save(filename))
@@ -386,20 +270,8 @@ void redactor(const char* filename)
 
                 return;
             }
-
-            /*
-             * Save failed.
-             * Stay inside editor.
-             */
-
             continue;
         }
-
-
-        /* =================================================
-           sys/edit <N> - overwrite an existing line
-           ================================================= */
-
         if (starts_with(input, "sys/edit "))
         {
             int line_number = atoi_simple(input + 9);
@@ -456,17 +328,8 @@ void redactor(const char* filename)
             continue;
         }
 
-
-        /* =================================================
-           Normal source line
-           ================================================= */
-
         if (editor_lines >= REDACTOR_MAX_LINES)
         {
-            /*
-             * There is no room for another source line.
-             */
-
             continue;
         }
 

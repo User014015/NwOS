@@ -1,10 +1,5 @@
 #include "keyboard.h"
 
-/* =========================================================
-   PS/2 keyboard
-   Scan code set 1
-   ========================================================= */
-
 #define KEYBOARD_DATA_PORT    0x60
 #define KEYBOARD_STATUS_PORT  0x64
 
@@ -16,12 +11,6 @@
 static int shift_left  = 0;
 static int shift_right = 0;
 static int caps_lock   = 0;
-
-
-/* =========================================================
-   I/O
-   ========================================================= */
-
 static unsigned char kb_inb(
     unsigned short port)
 {
@@ -35,12 +24,6 @@ static unsigned char kb_inb(
 
     return value;
 }
-
-
-/* =========================================================
-   Scancode -> ASCII
-   ========================================================= */
-
 static char keymap[128] =
 {
     0,
@@ -81,12 +64,6 @@ static char keymap[128] =
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0
 };
-
-
-/* =========================================================
-   Shifted symbols
-   ========================================================= */
-
 static char shifted_keymap[128] =
 {
     0,
@@ -134,27 +111,12 @@ static char shifted_keymap[128] =
     0,0,0,0,0,0,0,0,0,0,0,0,0
 };
 
-
-/* =========================================================
-   Keyboard init
-   ========================================================= */
-
 void keyboard_init(void)
 {
-    /*
-     * For the current polling implementation there is
-     * no complex controller setup required here.
-     */
-
     shift_left  = 0;
     shift_right = 0;
     caps_lock   = 0;
 }
-
-
-/* =========================================================
-   Read raw scancode
-   ========================================================= */
 
 static unsigned char keyboard_read_scancode(void)
 {
@@ -166,11 +128,6 @@ static unsigned char keyboard_read_scancode(void)
 
     return kb_inb(KEYBOARD_DATA_PORT);
 }
-
-
-/* =========================================================
-   Translate one key
-   ========================================================= */
 
 int keyboard_getkey(void)
 {
@@ -190,10 +147,6 @@ int keyboard_getkey(void)
 
             continue;
         }
-
-        /*
-         * Key release
-         */
         if (scancode & KEYBOARD_RELEASE)
         {
             unsigned char make =
@@ -207,10 +160,6 @@ int keyboard_getkey(void)
 
             continue;
         }
-
-        /*
-         * Shift
-         */
         if (scancode == 0x2A)
         {
             shift_left = 1;
@@ -222,19 +171,11 @@ int keyboard_getkey(void)
             shift_right = 1;
             continue;
         }
-
-        /*
-         * Caps Lock
-         */
         if (scancode == 0x3A)
         {
             caps_lock = !caps_lock;
             continue;
         }
-
-        /*
-         * Special keys
-         */
         if (scancode == 0x0E)
             return KEY_BACKSPACE;
 
@@ -255,9 +196,6 @@ int keyboard_getkey(void)
         if (c == 0)
             continue;
 
-        /*
-         * Caps Lock
-         */
         if (c >= 'a' && c <= 'z')
         {
             if (caps_lock &&

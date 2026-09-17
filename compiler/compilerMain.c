@@ -99,11 +99,6 @@ int main(int argc, char** argv)
 
     ASTNode* ast;
 
-
-    /* -----------------------------------------
-       Arguments
-       ----------------------------------------- */
-
     if (argc < 2)
     {
         print_usage();
@@ -118,11 +113,6 @@ int main(int argc, char** argv)
     {
         output_path = argv[3];
     }
-
-
-    /* -----------------------------------------
-       Automatic .nwo output
-       ----------------------------------------- */
 
     if (output_path == NULL)
     {
@@ -169,12 +159,6 @@ int main(int argc, char** argv)
             output_path = default_output;
         }
     }
-
-
-    /* -----------------------------------------
-       Read source
-       ----------------------------------------- */
-
     printf("NwC 0.1\n");
     printf("Input : %s\n", input_path);
     printf("Output: %s\n\n", output_path);
@@ -187,11 +171,6 @@ int main(int argc, char** argv)
         return 1;
 
     printf("OK\n");
-
-
-    /* -----------------------------------------
-       Parse
-       ----------------------------------------- */
 
     printf("Parsing...  ");
 
@@ -222,11 +201,6 @@ int main(int argc, char** argv)
 
     printf("OK\n");
 
-
-    /* -----------------------------------------
-       Code generation
-       ----------------------------------------- */
-
     printf("Codegen...   ");
 
     if (!codegen_write_nwo(
@@ -243,11 +217,6 @@ int main(int argc, char** argv)
     }
 
     printf("OK\n");
-
-
-    /* -----------------------------------------
-       Done
-       ----------------------------------------- */
 
     printf("\nCreated: %s\n",
            output_path);

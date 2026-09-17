@@ -2,20 +2,10 @@
 
 #include "../../kernel.h"
 
-
-/* =========================================================
-   Kernel functions
-   ========================================================= */
-
 void print(const char* text);
 void read_line(char* buffer, int max);
 
 int random_range(int min, int max);
-
-
-/* =========================================================
-   Words
-   ========================================================= */
 
 static const char* words[] =
 {
@@ -375,7 +365,7 @@ static const char* words[] =
     "forging ",
     "forgot ",
     "forms ",
-    "forsaken ", //bad game
+    "forsaken ",
     "free ",
     "frame ",
     "freely ",
@@ -468,8 +458,6 @@ static const char* words[] =
     "loads ",
     "lively ",
     "main ",
-    // so bores, i gonna just add random words
-    /* ==random words==*/
     "loader ",
     "miner ",
     "Pro ",
@@ -504,47 +492,24 @@ static const char* words[] =
     "width ",
     "height ",
     "end ",
-    "of world",
-    // add later more
+    "of world"
 };
-
-
-/* =========================================================
-   Word count
-   ========================================================= */
 
 #define WORD_COUNT \
     (sizeof(words) / sizeof(words[0]))
-
-
-/* =========================================================
-   Random sentence
-   ========================================================= */
-
 void say(void)
 {
     print("\n\n");
-
     print("Program says: ");
-
     for (int i = 0; i < 17; i++)
     {
         int randomword;
-
         randomword =
             random_range(0, WORD_COUNT - 1);
-
         print(words[randomword]);
     }
-
     print("\n\n");
 }
-
-
-/* =========================================================
-   Computer chat
-   ========================================================= */
-
 void chat(void)
 {
     char input[128];
@@ -565,12 +530,6 @@ void chat(void)
             input,
             128
         );
-
-
-        /* -----------------------------------------
-           Exit
-           ----------------------------------------- */
-
         if (strcmp(input, "!0") == 0)
         {
             print("\n");
@@ -579,26 +538,16 @@ void chat(void)
 
             return;
         }
-
-
-        /* -----------------------------------------
-           Input does not affect the answer.
-           Generate random words.
-           ----------------------------------------- */
-
         print("\n");
         print("Computer: ");
 
         for (int i = 0; i < 17; i++)
         {
             int randomword;
-
             randomword =
                 random_range(0, WORD_COUNT - 1);
-
             print(words[randomword]);
         }
-
         print("\n\n");
     }
 }

@@ -1,10 +1,6 @@
 #include "disk.h"
 #include "../include/kernelpanic.h"
 
-/* =========================
-   Disk I/O (ATA PIO, primary master, LBA28)
-   ========================= */
-
 #define ATA_TIMEOUT 500000
 
 #define ATA_DATA        0x1F0

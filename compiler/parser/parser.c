@@ -22,11 +22,6 @@
 *                    not even compile into .nwo
 */
 
-
-/* =========================================================
-   helpers
-   ========================================================= */
-
 static void parser_advance(Parser* parser)
 {
     parser->previous = parser->current;
@@ -80,10 +75,6 @@ static void parser_expect(Parser* parser, TokenType type)
         parser->error_count++;
     }
 }
-
-/* =========================================================
-   AST allocation
-   ========================================================= */
 
 static ASTNode* ast_new(ASTNodeType type, int line, int column)
 {
@@ -141,90 +132,38 @@ static char* copy_text(const char* text)
     return result;
 }
 
-
-/* =========================================================
-   Type parsing
-   ========================================================= */
-
 static ValueType parse_type(Parser* parser)
 {
-    /*
-     * 1A (int)
-     * writes like 1A
-     */
-
     if (parser_match(parser, TOKEN_INT_TYPE))
         return TYPE_INT;
-
-    /*
-     * flt (float, good for calculators)
-     */
 
     if (parser_match(parser, TOKEN_FLOAT_TYPE))
         return TYPE_FLOAT;
 
-    /*
-     * bol (bool true or false)
-     */
-
     if (parser_match(parser, TOKEN_BOOL_TYPE))
         return TYPE_BOOL;
 
-    /*
-     * lng (long in c++)
-     */
-
     if (parser_match(parser, TOKEN_LONG_TYPE))
     {
-        /*
-         * Support:
-         *
-         * lng value;
-         * lng lng value;
-         */
-
         if (parser_is(parser, TOKEN_LONG_TYPE))
         {
             parser_advance(parser);
             return TYPE_LONG_LONG;
         }
-
         return TYPE_LONG;
     }
-
-    /*
-     * char (like in c language)
-     */
-
     if (parser_match(parser, TOKEN_CHAR_TYPE))
         return TYPE_CHAR;
-
-    /*
-     * str (like string in c++)
-     */
-
     if (parser_match(parser, TOKEN_STRING_TYPE))
         return TYPE_STRING;
-
     return TYPE_UNKNOWN;
 }
-
-
-/* =========================================================
-   Primary expressions
-   ========================================================= */
-
 static ASTNode* parse_expression(Parser* parser);
 
 
 static ASTNode* parse_primary(Parser* parser)
 {
     ASTNode* node;
-
-    /*
-     * number
-     */
-
     if (parser_is(parser, TOKEN_NUMBER))
     {
         node = ast_new(
@@ -242,12 +181,6 @@ static ASTNode* parse_primary(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * float
-     */
-
     if (parser_is(parser, TOKEN_FLOAT))
     {
         node = ast_new(
@@ -265,12 +198,6 @@ static ASTNode* parse_primary(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * Str
-     */
-
     if (parser_is(parser, TOKEN_STRING))
     {
         node = ast_new(
@@ -286,11 +213,6 @@ static ASTNode* parse_primary(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * Character
-     */
 
     if (parser_is(parser, TOKEN_CHAR))
     {
@@ -308,11 +230,6 @@ static ASTNode* parse_primary(Parser* parser)
         return node;
     }
 
-
-    /*
-     * true
-     */
-
     if (parser_match(parser, TOKEN_TRUE))
     {
         node = ast_new(
@@ -327,11 +244,6 @@ static ASTNode* parse_primary(Parser* parser)
         return node;
     }
 
-
-    /*
-     * false
-     */
-
     if (parser_match(parser, TOKEN_FALSE))
     {
         node = ast_new(
@@ -345,11 +257,6 @@ static ASTNode* parse_primary(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * Identifier
-     */
 
     if (parser_is(parser, TOKEN_IDENTIFIER))
     {
@@ -366,11 +273,6 @@ static ASTNode* parse_primary(Parser* parser)
         return node;
     }
 
-
-    /*
-     * Parenthesized expression
-     */
-
     if (parser_match(parser, TOKEN_LPAREN))
     {
         node = parse_expression(parser);
@@ -385,11 +287,6 @@ static ASTNode* parse_primary(Parser* parser)
 
     return NULL;
 }
-
-
-/* =========================================================
-   binary expressions
-   ========================================================= */
 
 static ASTNode* parse_expression(Parser* parser)
 {
@@ -441,12 +338,6 @@ static ASTNode* parse_expression(Parser* parser)
 
     return left;
 }
-
-
-/* =========================================================
-   Include
-   ========================================================= */
-
 static ASTNode* parse_include(Parser* parser)
 {
     ASTNode* node;
@@ -478,11 +369,6 @@ static ASTNode* parse_include(Parser* parser)
     return node;
 }
 
-
-/* =========================================================
-   Variable declaration
-   ========================================================= */
-
 static ASTNode* parse_variable(Parser* parser)
 {
     ASTNode* node;
@@ -496,11 +382,6 @@ static ASTNode* parse_variable(Parser* parser)
 
     if (type == TYPE_UNKNOWN)
         return NULL;
-
-
-    /*
-     * Variable name
-     */
 
     if (!parser_is(parser, TOKEN_IDENTIFIER))
     {
@@ -526,13 +407,6 @@ static ASTNode* parse_variable(Parser* parser)
 
     parser_advance(parser);
 
-
-    /*
-     * Array:
-     *
-     * char text[4];
-     */
-
     if (parser_match(parser, TOKEN_LBRACKET))
     {
         ASTNode* size_node;
@@ -556,14 +430,6 @@ static ASTNode* parse_variable(Parser* parser)
         );
     }
 
-
-    /*
-     * Optional initializer
-     *
-     * 1A (int) x = 10;
-     * str name = "Hello";
-     */
-
     if (parser_match(parser, TOKEN_ASSIGN))
     {
         node->child = parse_expression(parser);
@@ -578,21 +444,10 @@ static ASTNode* parse_variable(Parser* parser)
     return node;
 }
 
-
-/* =========================================================
-   nw::endl
-   ========================================================= */
-
-/*like end of string*/
-
 static int parse_nw_endl(Parser* parser)
 {
     if (!parser_is(parser, TOKEN_NAMESPACE))
         return 0;
-
-    /*
-     * save current state
-     */
 
     Token saved_namespace = parser->current;
 
@@ -612,11 +467,6 @@ static int parse_nw_endl(Parser* parser)
     return 1;
 }
 
-
-/* =========================================================
-   nw::out
-   ========================================================= */
-
 static ASTNode* parse_output(Parser* parser)
 {
     ASTNode* node;
@@ -626,18 +476,9 @@ static ASTNode* parse_output(Parser* parser)
     int line = parser->current.line;
     int column = parser->current.column;
 
-    /*
-     * nw
-     */
-
     parser_expect(parser, TOKEN_NAMESPACE);
 
     parser_expect(parser, TOKEN_SCOPE);
-
-    /*
-     * out
-     */
-
     parser_expect(parser, TOKEN_OUT);
 
     node = ast_new(
@@ -645,11 +486,6 @@ static ASTNode* parse_output(Parser* parser)
         line,
         column
     );
-
-
-    /*
-     * nw::out << expression
-     */
 
     while (parser_match(parser, TOKEN_SHIFT_LEFT))
     {
@@ -696,11 +532,6 @@ static ASTNode* parse_output(Parser* parser)
     return node;
 }
 
-
-/* =========================================================
-   nw::cin
-   ========================================================= */
-
 static ASTNode* parse_input(Parser* parser)
 {
     ASTNode* node;
@@ -735,11 +566,6 @@ static ASTNode* parse_input(Parser* parser)
 
     return node;
 }
-
-
-/* =========================================================
-   nw::line(nw::cin, variable)
-   ========================================================= */
 
 static ASTNode* parse_line_input(Parser* parser)
 {
@@ -794,11 +620,6 @@ static ASTNode* parse_line_input(Parser* parser)
     return node;
 }
 
-
-/* =========================================================
-   Return
-   ========================================================= */
-
 static ASTNode* parse_return(Parser* parser)
 {
     ASTNode* node;
@@ -846,13 +667,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
 
     parser_expect(parser, TOKEN_SCOPE);
 
-
-    /*
-     * =====================================================
-     * nw::out
-     * =====================================================
-     */
-
     if (parser_is(parser, TOKEN_OUT))
     {
         ASTNode* node;
@@ -873,20 +687,10 @@ static ASTNode* parse_nw_statement(Parser* parser)
         {
             ASTNode* expression;
 
-            /*
-             * nw::endl
-             */
-
             if (parser_is(parser, TOKEN_NAMESPACE))
             {
                 Token saved_lexer_current =
                     parser->current;
-
-                /*
-                 * parse
-                 *
-                 * nw :: endl
-                 */
 
                 parser_advance(parser);
 
@@ -919,12 +723,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
                     }
                 }
 
-                /*
-                 * not endl
-                 *
-                 * restore only current token
-                 */
-
                 parser->current =
                     saved_lexer_current;
             }
@@ -947,13 +745,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * =====================================================
-     * nw::cin
-     * =====================================================
-     */
 
     if (parser_is(parser, TOKEN_CIN))
     {
@@ -983,13 +774,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
         return node;
     }
 
-
-    /*
-     * =====================================================
-     * nw::line(...)
-     * =====================================================
-     */
-
     if (parser_is(parser, TOKEN_LINE))
     {
         ASTNode* node;
@@ -1016,21 +800,8 @@ static ASTNode* parse_nw_statement(Parser* parser)
         {
             ASTNode* argument;
 
-            /*
-             * nw::cin inside nw::line()
-             */
-
             if (parser_is(parser, TOKEN_NAMESPACE))
             {
-                /*
-                 * currently support:
-                 *
-                 * nw::line(nw::cin, name)
-                 *
-                 * for now represent nw::cin
-                 * as special expression
-                 */
-
                 parser_advance(parser);
                 parser_expect(
                     parser,
@@ -1095,13 +866,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
         return node;
     }
 
-
-    /*
-     * =====================================================
-     * nw::time(...)
-     * =====================================================
-     */
-
     if (parser_is(parser, TOKEN_TIME))
     {
         ASTNode* node;
@@ -1137,13 +901,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * =====================================================
-     * nw::color(...)
-     * =====================================================
-     */
 
     if (parser_is(parser, TOKEN_COLOR))
     {
@@ -1181,13 +938,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
         return node;
     }
 
-
-    /*
-     * =====================================================
-     * nw::getkey()
-     * =====================================================
-     */
-
     if (parser_is(parser, TOKEN_GETKEY))
     {
         ASTNode* node;
@@ -1220,14 +970,6 @@ static ASTNode* parse_nw_statement(Parser* parser)
 
         return node;
     }
-
-
-    /*
-     * =====================================================
-     * nw::clear()
-     * =====================================================
-     */
-
     if (parser_is(parser, TOKEN_CLEAR))
     {
         ASTNode* node;
@@ -1270,17 +1012,8 @@ static ASTNode* parse_nw_statement(Parser* parser)
     return NULL;
 }
 
-
-/* =========================================================
-   Statements
-   ========================================================= */
-
 static ASTNode* parse_statement(Parser* parser)
 {
-    /*
-     * var
-     */
-
     if (
         parser_is(parser, TOKEN_INT_TYPE) ||
         parser_is(parser, TOKEN_FLOAT_TYPE) ||
@@ -1292,21 +1025,10 @@ static ASTNode* parse_statement(Parser* parser)
     {
         return parse_variable(parser);
     }
-
-
-    /*
-     * return
-     */
-
     if (parser_is(parser, TOKEN_RETURN))
     {
         return parse_return(parser);
     }
-
-
-    /*
-     * nw::
-     */
 
     if (parser_is(parser, TOKEN_NAMESPACE))
     {
@@ -1323,11 +1045,6 @@ static ASTNode* parse_statement(Parser* parser)
 
     return NULL;
 }
-
-
-/* =========================================================
-   block
-   ========================================================= */
 
 static ASTNode* parse_block(Parser* parser)
 {
@@ -1375,11 +1092,6 @@ static ASTNode* parse_block(Parser* parser)
     return node;
 }
 
-
-/* =========================================================
-   function
-   ========================================================= */
-
 static ASTNode* parse_function(Parser* parser)
 {
     ASTNode* node;
@@ -1388,19 +1100,6 @@ static ASTNode* parse_function(Parser* parser)
 
     int line = parser->current.line;
     int column = parser->current.column;
-
-
-    /*
-     * return type
-     *
-     * for now:
-     *
-     * 1A main()
-     *
-     * and
-     *
-     * void foo()
-     */
 
     if (parser_is(parser, TOKEN_INT_TYPE))
     {
@@ -1450,26 +1149,10 @@ static ASTNode* parse_function(Parser* parser)
 
     parser_advance(parser);
 
-
-    /*
-     * parameters
-     */
-
     parser_expect(
         parser,
         TOKEN_LPAREN
     );
-
-
-    /*
-     * for now accept an empty parameter list.
-     *
-     * i add:
-     *
-     * 1A a, 1A b
-     *
-     * later.
-     */
 
     while (!parser_is(parser, TOKEN_RPAREN) &&
            !parser_is(parser, TOKEN_EOF))
@@ -1486,21 +1169,11 @@ static ASTNode* parse_function(Parser* parser)
         TOKEN_RPAREN
     );
 
-
-    /*
-     * func body
-     */
-
     node->child =
         parse_block(parser);
 
     return node;
 }
-
-
-/* =========================================================
-   program
-   ========================================================= */
 
 static ASTNode* parse_program(Parser* parser)
 {
@@ -1519,22 +1192,10 @@ static ASTNode* parse_program(Parser* parser)
     while (!parser_is(parser, TOKEN_EOF))
     {
         ASTNode* node;
-
-        /*
-         * #include
-         */
-
         if (parser_is(parser, TOKEN_INCLUDE))
         {
             node = parse_include(parser);
         }
-
-        /*
-         * func
-         *
-         * 1A main()
-         */
-
         else if (
             parser_is(parser, TOKEN_INT_TYPE) ||
             (
@@ -1572,11 +1233,6 @@ static ASTNode* parse_program(Parser* parser)
     return program;
 }
 
-
-/* =========================================================
-   parser initialization
-   ========================================================= */
-
 void parser_init(Parser* parser, Lexer* lexer)
 {
     parser->lexer = lexer;
@@ -1588,21 +1244,10 @@ void parser_init(Parser* parser, Lexer* lexer)
 
     parser_advance(parser);
 }
-
-
-/* =========================================================
-   public parser
-   ========================================================= */
-
 ASTNode* parser_parse(Parser* parser)
 {
     return parse_program(parser);
 }
-
-
-/* =========================================================
-   ast free
-   ========================================================= */
 
 void ast_free(ASTNode* node)
 {
@@ -1622,11 +1267,6 @@ void ast_free(ASTNode* node)
 
     ast_free(next);
 }
-
-
-/* =========================================================
-   ast debug output
-   ========================================================= */
 
 static const char* ast_type_name(ASTNodeType type)
 {
