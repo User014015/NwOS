@@ -1270,7 +1270,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27\n");
-    print("v.1.4.1\n");
+    print("v.1.4.2\n");
     set_color(base_color);
 }
 
@@ -1307,7 +1307,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.4.1\n");
+    print_success("   Version: 1.4.2\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1744,6 +1744,7 @@ void games_menu(void)
 }
 
 void apps_list() {
+    clear();
     print("                 o-------------------------o\n");
     print("                 |                         |\n");
     print("                 |        1.Filestats      |\n");
@@ -2044,9 +2045,9 @@ void shell(void)
         else if (strcmp(command, "about") == 0)
         {
             set_color(COLOR_WHITE);
-            print("====NwOS 1.4.1====\n");
+            print("====NwOS 1.4.2====\n");
             print("Name: NwOS\n");
-            print("Version: v1.4.1\n");
+            print("Version: v1.4.2\n");
             print("Arch: x86\n");
             print("Display: VGA text mode\n");
             print("PS/2 keyboard\n");
@@ -2256,7 +2257,7 @@ void kernel_main(void)
     print("COMPILER\n");
 
     print("================================\n");
-    print("        Welcome to NwOS 1.4.1\n");
+    print("        Welcome to NwOS 1.4.2\n");
     print("================================\n");
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);

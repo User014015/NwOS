@@ -1,0 +1,10 @@
+#include <nwc.h>
+1A main() {
+    nw::out << "hi!\n";
+    1A newint;
+    nw::cin >> newint;
+    newint += 1;
+    nw::out << newint << nw::endl;
+
+    return 0;
+}

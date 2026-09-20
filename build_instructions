@@ -1,0 +1,31 @@
+NwOS F5 integration — build additions
+
+1. Compile and link these kernel-side compiler sources:
+   sys/kernel/nwc/nwc_runtime.c
+   sys/kernel/nwc/lexer.c
+   sys/kernel/nwc/parser.c
+   sys/kernel/nwc/codegen.c
+   sys/kernel/nwc/nwc_kernel.c
+
+2. Compile and link:
+   sys/kernel/Apps/textredactor/textredactor.c
+
+3. Keep the normal host compiler files under compiler/ unchanged.
+   compilerMain.c remains the Windows/host CLI compiler.
+
+4. Replace/merge the filesystem block using kernel_fs_large_block.c.txt
+   into the current sys/kernel/kernel.c.
+
+5. The new filesystem uses:
+   - 16 file slots
+   - 32 sectors per file
+   - 16384-byte maximum binary file size
+   - 16383-byte maximum text file size
+
+6. After the first boot with the new filesystem layout:
+      NwOS> format
+   This is required because the old one-sector-per-file layout is no longer compatible.
+
+7. Text editor:
+      F5 -> compile current editor contents -> write <name>.nwo
+   The generated .nwo is binary, so fs_write_bytes() is used instead of fs_write().

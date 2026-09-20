@@ -191,7 +191,7 @@ disk_address_packet:
     db 0x10
     db 0x00
 
-    dw 90
+    dw 106
 
     dw 0x0000  
     dw 0x1000  

@@ -67,4 +67,31 @@ type command help for help
 
 Nwc - its a compiler that works in NwOS
 
+## Text redactor + compiler
+
+NwOS — F5 editor/compiler integration
+
+This package adds:
+- PS/2 keyboard F5 support (KEY_F5)
+- larger filesystem slots (32 sectors/file, 16 KiB/file)
+- fs_read_text/fs_read_bytes/fs_write_bytes
+- freestanding in-kernel NwC compiler
+- compiler integration into TextRedactor
+- F5 in TextRedactor
+
+The supplied keyboard.c is a full polling PS/2 Set 1 keyboard driver.
+The file supplied by the user as "keyboard.c" is actually the ATA disk driver,
+so it is deliberately NOT modified by the F5 patch.
+
+The in-kernel compiler uses the same lexer/parser architecture and emits the
+NWO format expected by the current NwOS VM, including function parameter
+metadata, assignments, comparisons, logical operations, jumps, loops,
+break/continue, built-in nw:: calls and user function calls.
+
+Before testing the new filesystem layout, run:
+    format
+
+For safe QEMU testing, use -snapshot so disk changes go to temporary storage.
+
+
 ![NwC Logo](docs/nwc-logo.svg)
