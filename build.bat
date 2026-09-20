@@ -1,9 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-echo === Building MyOS ===
-
-REM ---- Конфигурация ----
+echo === Building NwOS ===
 set TARGET=i686-unknown-none-elf
 set CFLAGS=--target=%TARGET% -ffreestanding -nostdlib -nostdinc ^
  -fno-stack-protector -fno-pic -fno-pie -fno-PIC -fno-PIE ^
@@ -12,14 +10,12 @@ set CFLAGS=--target=%TARGET% -ffreestanding -nostdlib -nostdinc ^
  -mno-avx -mno-avx2 -mno-mmx -mno-80387 -mno-red-zone -mgeneral-regs-only ^
  -O2 -Wall -Wextra -I sys\kernel
 
-REM ---- Проверка инструментов ----
 where nasm >nul 2>nul || (echo [ERROR] nasm not in PATH & exit /b 1)
 where clang >nul 2>nul || (echo [ERROR] clang not in PATH & exit /b 1)
 where ld.lld >nul 2>nul || (echo [ERROR] ld.lld not in PATH. Install: pacman -S mingw-w64-ucrt-x86_64-lld & exit /b 1)
 
 if not exist build mkdir build
 
-REM ---- Проверка, что таргет реально ELF ----
 echo [0/6] Verifying target triple...
 clang --target=%TARGET% -print-target-triple > build\triple.txt
 findstr /C:"i686-unknown-none-elf" build\triple.txt >nul
@@ -63,8 +59,6 @@ if exist sys\kernel\idt.c (
     clang %CFLAGS% -c sys\kernel\idt.c  -o build\idt_c.o
     if errorlevel 1 goto :error
 )
-
-REM ---- Проверка: объектники действительно ELF? ----
 echo      Checking object file format...
 clang --target=%TARGET% -c -x c nul -o build\_probe.o 2>nul
 for %%F in (build\kernel.o) do (
@@ -86,8 +80,6 @@ if errorlevel 1 (
     if errorlevel 1 goto :error
 )
 
-REM Простая проверка через findstr: ищем "MZ" в первых 2 байтах нельзя,
-REM поэтому просто выводим размер. Проверку формата смотри глазами в od.
 for %%F in (build\kernel.bin) do set KBSIZE=%%~zF
 echo      kernel.bin size: %KBSIZE% bytes
 
