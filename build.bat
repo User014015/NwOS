@@ -53,6 +53,7 @@ clang %CFLAGS% -c sys\kernel\snake.c -o build\snake.o
 clang %CFLAGS% -c sys\kernel\demo3d.c  -o build\demo3d.o
 clang %CFLAGS% -c sys\kernel\raycast.c -o build\raycast.o
 clang %CFLAGS% -c sys\kernel\talons.c -o build\talons.o
+clang %CFLAGS% -c sys\kernel\chat.c -o build\chat.o
 if errorlevel 1 goto :error
 if errorlevel 1 goto :error
 if exist sys\kernel\idt.c (
@@ -66,7 +67,7 @@ for %%F in (build\kernel.o) do (
 )
 
 echo [4/6] Linking with ld.lld (ELF32)...
-set OBJS=build\kernel_entry.o build\kernel.o build\graphics.o build\keyboard.o build\mouse.o build\shell.o build\timer.o build\metrics.o build/snake.o build/demo3d.o build/raycast.o build/talons.o
+set OBJS=build\kernel_entry.o build\kernel.o build\graphics.o build\keyboard.o build\mouse.o build\shell.o build\timer.o build\metrics.o build/snake.o build/demo3d.o build/raycast.o build/talons.o build/chat.o
 if exist build\idt.o   set OBJS=!OBJS! build\idt.o
 if exist build\idt_c.o set OBJS=!OBJS! build\idt_c.o
 

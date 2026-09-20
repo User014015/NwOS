@@ -9,6 +9,7 @@ static char buf[BUF_MAX];
 static int  len = 0;
 static char lines[LINE_MAX][BUF_MAX];
 static int  line_count = 0;
+static int scroll_offset = 0;
 extern unsigned char THEME_BG, THEME_FG, THEME_BAR, THEME_BAR_FG;
 extern unsigned char THEME_BTN, THEME_BTN_FG, THEME_SEL, THEME_SEL_FG;
 
@@ -38,7 +39,7 @@ static void cmd_help(void) {
     push_line("  help                 - this help");
     push_line("  clear                - clear screen");
     push_line("  echo <text>          - print text");
-    push_line("  about                - about MyOS");
+    push_line("  about                - about NwOS");
     push_line("  sys/menu             - open Personal Menu");
     push_line("  sys/welcome          - back to Welcome");
     push_line("  calc                 - calculator");
@@ -48,6 +49,13 @@ static void cmd_help(void) {
     push_line("  theme light/dark      - switch theme");
     push_line("  snake                - play Snake");
     push_line("  run <game>           - Run game (3D)");
+    push_line("  chat                 - Chat with Computer");
+    push_line("  more                 - More commands");
+}
+
+static void HelpMore(void) {
+    push_line("--- MORE COMMANDS ---");
+    push_line("In dev");
 }
 
 static void cmd_about(void) {
@@ -196,6 +204,8 @@ static void run_command(void) {
     else if (str_eq(cmd, "talons"))       { push_line("Running: talons");  shell_run_game("talons"); }
     else if (str_eq(cmd, "castle"))       { push_line("Running: castle");  shell_run_game("castle"); }
     else if (str_eq(cmd, "demo3d"))       { push_line("Running: demo3d");  shell_run_game("demo3d"); }
+    else if (str_eq(cmd, "chat"))         shell_run_chat();
+    else if (str_eq(cmd, "more"))         HelpMore();
     else push_line("Unknown. Type 'help'.");
 
     len = 0; buf[0] = 0;
@@ -205,7 +215,7 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.0");
+    push_line("NwOS Shell v2.0.1");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
@@ -214,11 +224,15 @@ void shell_init(void) {
 void shell_draw(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.0  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.1  |  Shell", THEME_BAR_FG, THEME_BAR);
+
+    int visible = 22;
+    int end   = line_count - scroll_offset;
+    int start = end - visible;
+    if (start < 0) start = 0;
 
     int y = 40;
-    int first = (line_count > LINE_MAX - 4) ? line_count - (LINE_MAX - 4) : 0;
-    for (int i = first; i < line_count; i++) {
+    for (int i = start; i < end && i < line_count; i++) {
         gfx_puts(8, y, lines[i], THEME_FG, THEME_BG);
         y += 16;
     }
@@ -235,6 +249,7 @@ void shell_draw(void) {
 void shell_handle_key(char c) {
     unsigned char u = (unsigned char)c;
     if (u == KEY_ENTER) {
+        scroll_offset = 0;
         run_command();
     } else if (u == KEY_BACKSPACE) {
         if (len > 0) buf[--len] = 0;
@@ -242,4 +257,12 @@ void shell_handle_key(char c) {
         buf[len++] = c;
         buf[len] = 0;
     }
+}
+
+void shell_scroll(int delta) {
+    scroll_offset += delta;
+    if (scroll_offset < 0) scroll_offset = 0;
+    int max = line_count - 1;
+    if (max < 0) max = 0;
+    if (scroll_offset > max) scroll_offset = max;
 }

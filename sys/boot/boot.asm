@@ -2,7 +2,7 @@
 [ORG 0x7C00]
 
 KERNEL_SEG   equ 0x1000
-KERNEL_SECT equ 88 ; SECTORS
+KERNEL_SECT equ 101 ; SECTORS
 
 start:
     cli

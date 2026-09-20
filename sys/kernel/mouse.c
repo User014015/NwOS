@@ -6,7 +6,9 @@
 #define MOUSE_CMD    0x64
 
 static unsigned char cycle = 0;
-static signed char   packet[3];
+static signed char   packet[4];
+static int           packet_size = 3;
+static int           wheel_accum = 0;
 static int mouse_x = 320, mouse_y = 240;
 static int cur_left = 0, cur_right = 0;
 static int prev_left = 0, prev_right = 0;
@@ -19,7 +21,6 @@ static void mouse_wait_read(void) {
     int t = 100000;
     while (t-- && !(inb(MOUSE_STATUS) & 1)) __asm__ volatile("pause");
 }
-
 static void mouse_write(unsigned char d) {
     mouse_wait_write(); outb(MOUSE_CMD, 0xD4);
     mouse_wait_write(); outb(MOUSE_DATA, d);
@@ -33,18 +34,31 @@ void mouse_init(void) {
     for (int i = 0; i < 100 && (inb(MOUSE_STATUS) & 1); i++) (void)inb(MOUSE_DATA);
 
     mouse_wait_write(); outb(MOUSE_CMD, 0xA8);
+
     mouse_wait_write(); outb(MOUSE_CMD, 0x20);
     mouse_wait_read();
     unsigned char status = inb(MOUSE_DATA);
-    status &= ~0x03;
+    status |= 0x03;
     status &= ~0x20;
     mouse_wait_write(); outb(MOUSE_CMD, 0x60);
     mouse_wait_write(); outb(MOUSE_DATA, status);
     mouse_write(0xF6); (void)mouse_read();
     mouse_write(0xF4); (void)mouse_read();
+    mouse_write(0xF3); (void)mouse_read();
+    mouse_write(200);  (void)mouse_read();
+    mouse_write(0xF3); (void)mouse_read();
+    mouse_write(100);  (void)mouse_read();
+    mouse_write(0xF3); (void)mouse_read();
+    mouse_write(80);   (void)mouse_read();
+    mouse_write(0xF2); (void)mouse_read();
+    unsigned char id = mouse_read();
+    packet_size = (id == 3) ? 4 : 3;
+    mouse_write(0xF4); (void)mouse_read();
+
     for (int i = 0; i < 20 && (inb(MOUSE_STATUS) & 1); i++) (void)inb(MOUSE_DATA);
 
     cycle = 0;
+    wheel_accum = 0;
     cur_left = cur_right = prev_left = prev_right = 0;
 }
 
@@ -56,8 +70,9 @@ void mouse_update(mouse_state_t *state) {
 
         packet[cycle++] = (signed char)data;
 
-        if (cycle == 3) {
+        if (cycle == packet_size) {
             cycle = 0;
+
             int dx = packet[1];
             int dy = packet[2];
             mouse_x += dx;
@@ -70,6 +85,10 @@ void mouse_update(mouse_state_t *state) {
 
             cur_left  = packet[0] & 1;
             cur_right = packet[0] & 2;
+
+            if (packet_size == 4) {
+                wheel_accum += packet[3];
+            }
         }
     }
 
@@ -79,6 +98,8 @@ void mouse_update(mouse_state_t *state) {
     state->right = cur_right;
     state->left_pressed  = cur_left  && !prev_left;
     state->right_pressed = cur_right && !prev_right;
+    state->wheel = wheel_accum;
+    wheel_accum = 0;
     prev_left  = cur_left;
     prev_right = cur_right;
 }

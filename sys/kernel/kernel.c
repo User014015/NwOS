@@ -9,18 +9,20 @@
 #include "demo3d.h"
 #include "raycast.h"
 #include "talons.h"
+#include "chat.h"
 
 static void redraw(void);
 static void draw_topbar(void);
 
 typedef enum {
     SCR_WELCOME, SCR_MENU, SCR_GAMES, SCR_SHELL,
-    SCR_CALC, SCR_GAME, SCR_SNAKE, SCR_DEMO3D, SCR_RAYCAST, SCR_TALONS
+    SCR_CALC, SCR_GAME, SCR_SNAKE, SCR_DEMO3D, SCR_RAYCAST, SCR_TALONS,
+    SCR_CHAT
 } screen_t;
 static screen_t current = SCR_WELCOME;
 
 // Welcome
-static const char *welcome_items[] = { "Games", "Calculator", "Shell", "About", "Reboot" };
+static const char *welcome_items[] = { "Games", "Calculator", "Shell", "Chat", "Reboot" };
 #define WELCOME_N 5
 static int welcome_sel = 0;
 #define WELCOME_BX 120
@@ -70,6 +72,10 @@ void shell_run_calc(void) {
     current = SCR_CALC;
     calc_len = 0; calc_buf[0] = 0; calc_result_valid = 0;
 }
+void shell_run_chat(void) {
+    chat_init();
+    current = SCR_CHAT;
+}
 void shell_run_game2d(const char *name) {
     const char *needle = "snake";
     const char *s = name;
@@ -89,17 +95,17 @@ static const unsigned char cursor_shape[18][11] = {
     {0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0,0,0,0},
     {0,1,1,1,1,1,0,0,0,0,0},
-    {0,1,0,0,0,0,0,0,0,0,0},
     {0,1,1,0,0,0,0,0,0,0,0},
     {0,1,0,1,0,0,0,0,0,0,0},
     {0,1,0,0,1,0,0,0,0,0,0},
-    {0,0,0,0,0,1,0,0,0,0,0},
+    {0,1,0,0,0,1,0,0,0,0,0},
     {0,0,0,0,0,0,1,0,0,0,0},
     {0,0,0,0,0,0,0,1,0,0,0},
     {0,0,0,0,0,0,0,0,1,0,0},
     {0,0,0,0,0,0,0,0,0,1,0},
     {0,0,0,0,0,0,0,0,0,0,1},
-    {0,0,0,0,0,0,0,0,0,0,1},
+    {0,0,0,0,0,0,0,0,0,0,0},
+    {0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,0,0,0,0,0,0},
@@ -128,7 +134,7 @@ void shell_run_game(const char *name) {
 static void draw_welcome(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.0  |  Welcome", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.1  |  Welcome", THEME_BAR_FG, THEME_BAR);
 
     gfx_puts(120, 40, "=== WELCOME TO NwOS ===", YELLOW, THEME_BG);
     gfx_puts(190, 60, "Pick an option below", THEME_FG, THEME_BG);
@@ -273,6 +279,7 @@ static void redraw(void) {
         case SCR_DEMO3D: demo3d_draw();  break;
         case SCR_RAYCAST: raycast_draw(); break;
         case SCR_TALONS: talons_draw(); break;
+        case SCR_CHAT: chat_draw(); break;
     }
     draw_cursor(cursor_x, cursor_y);
     draw_topbar();
@@ -320,18 +327,19 @@ static int u2s(unsigned int v, char *out) {
 static void draw_topbar(void) {
     gfx_rect(0, 0, 640, 32, THEME_BAR);
 
-    const char *title = "NwOS 2.0.0";
+    const char *title = "NwOS 2.0.1";
     switch (current) {
-        case SCR_WELCOME: title = "NwOS 2.0.0  |  Welcome";       break;
-        case SCR_MENU:    title = "NwOS 2.0.0  |  Personal Menu"; break;
-        case SCR_SHELL:   title = "NwOS 2.0.0  |  Shell";         break;
-        case SCR_CALC:    title = "NwOS 2.0.0  |  Calculator";    break;
-        case SCR_GAME:    title = "NwOS 2.0.0  |  Game";          break;
-        case SCR_GAMES: title = "NwOS 2.0.0  |  Games"; break;
-        case SCR_SNAKE: title = "NwOS 2.0.0  |  Snake"; break;
-        case SCR_DEMO3D: title = "NwOS 2.0.0  |  3D Demo";  break;
-        case SCR_RAYCAST: title = "NwOS 2.0.0  |  Castle NwOS"; break;
-        case SCR_TALONS: title = "NwOS 2.0.0  |  Talons"; break;
+        case SCR_WELCOME: title = "NwOS 2.0.1  |  Welcome";       break;
+        case SCR_MENU:    title = "NwOS 2.0.1  |  Personal Menu"; break;
+        case SCR_SHELL:   title = "NwOS 2.0.1  |  Shell";         break;
+        case SCR_CALC:    title = "NwOS 2.0.1  |  Calculator";    break;
+        case SCR_GAME:    title = "NwOS 2.0.1  |  Game";          break;
+        case SCR_GAMES: title = "NwOS 2.0.1  |  Games"; break;
+        case SCR_SNAKE: title = "NwOS 2.0.1  |  Snake"; break;
+        case SCR_DEMO3D: title = "NwOS 2.0.1  |  3D Demo";  break;
+        case SCR_RAYCAST: title = "NwOS 2.0.1  |  Castle NwOS"; break;
+        case SCR_TALONS: title = "NwOS 2.0.1  |  Talons"; break;
+        case SCR_CHAT: title = "NwOS 2.0.1  |  Chat"; break;
     }
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char buf[64];
@@ -365,7 +373,7 @@ void kernel_main(void) {
     shell_apply_theme();
     redraw();
 
-    mouse_state_t m = {320, 240, 0, 0, 0, 0};
+    mouse_state_t m = {320, 240, 0, 0, 0, 0, 0};
     unsigned int frame_count     = 0;
     unsigned int fps_start_ms    = timer_ms();
     unsigned int metric_last_ms  = timer_ms();
@@ -393,6 +401,12 @@ void kernel_main(void) {
             cursor_y = m.y;
             dirty = 1;
         }
+        if (m.wheel != 0) {
+            int dir = (m.wheel > 0) ? 1 : -1;
+            if (current == SCR_SHELL) { shell_scroll(dir); dirty = 1; }
+            if (current == SCR_CHAT)  { chat_scroll(dir);  dirty = 1; }
+            m.wheel = 0;
+        }
         if (m.left_pressed) {
             on_click(m.x, m.y);
         }
@@ -407,6 +421,7 @@ void kernel_main(void) {
                 else if (current == SCR_GAME)  current = SCR_SHELL;
                 else if (current == SCR_SNAKE) current = SCR_GAMES;
                 else if (current == SCR_GAMES) current = SCR_WELCOME;
+                else if (current == SCR_CHAT) current = SCR_WELCOME;
                 else                           current = SCR_WELCOME;
                 dirty = 1;
             } else {
@@ -461,7 +476,7 @@ void kernel_main(void) {
                                 case 0: games_sel = 0; current = SCR_GAMES; break;
                                 case 1: shell_run_calc();    break;
                                 case 2: current = SCR_SHELL; break;
-                                case 3: current = SCR_MENU;  break;
+                                case 3: shell_run_chat(); break;
                                 case 4: gfx_clear(BLACK); gfx_flip(); break;
                             }
                             dirty = 1;
@@ -477,6 +492,13 @@ void kernel_main(void) {
                     case SCR_SHELL:
                         shell_handle_key(c);
                         dirty = 1;
+                        break;
+                    
+                    case SCR_CHAT:
+                        if (u >= 0x20 || u == KEY_BACKSPACE || u == KEY_ENTER) {
+                            chat_handle_key(c);
+                            dirty = 1;
+                        }
                         break;
 
                     case SCR_CALC:
