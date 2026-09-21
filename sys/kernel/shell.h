@@ -13,4 +13,5 @@ void shell_run_game2d(const char *name);
 void shell_apply_theme(void);
 void shell_run_game(const char *name);
 void shell_run_chat(void);
+void shell_run_editor(const char *name);
 #endif

@@ -9,6 +9,12 @@
 #define KEY_LEFT      0x82
 #define KEY_RIGHT     0x83
 
+#define KEY_HOME   0x84
+#define KEY_END    0x85
+#define KEY_DELETE 0x86
+#define KEY_PGUP   0x87
+#define KEY_PGDN   0x88
+
 void keyboard_init(void);
 char keyboard_getchar(void);
 int  keyboard_has_input(void);

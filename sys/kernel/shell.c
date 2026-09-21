@@ -1,3 +1,4 @@
+#include "fs.h"
 #include "shell.h"
 #include "graphics.h"
 #include "keyboard.h"
@@ -34,6 +35,54 @@ static int str_eq(const char *a, const char *b) {
     return *a == *b;
 }
 
+static void cmd_ls(void) {
+    int n = fs_count();
+    if (n == 0) { push_line("(no files)"); return; }
+    for (int i = 0; i < n; i++) {
+        char b[BUF_MAX];
+        int k = 0;
+        const char *nm = fs_name(i);
+        while (*nm && k < BUF_MAX - 12) b[k++] = *nm++;
+        while (k < 24) b[k++] = ' ';
+        int sz = fs_size(i);
+        char t[8]; int tt = 0;
+        if (sz == 0) t[tt++] = '0';
+        while (sz) { t[tt++] = '0' + (sz % 10); sz /= 10; }
+        while (tt) b[k++] = t[--tt];
+        b[k++] = ' '; b[k++] = 'B';
+        b[k] = 0;
+        push_line(b);
+    }
+}
+
+static void cmd_cat(const char *name) {
+    static char fbuf[FS_MAX_SIZE + 1];
+    int n = fs_read(name, fbuf, FS_MAX_SIZE);
+    if (n < 0) { push_line("File not found"); return; }
+    int s = 0;
+    for (int i = 0; i <= n; i++) {
+        if (i == n || fbuf[i] == '\n') {
+            int len = i - s;
+            if (len > BUF_MAX - 1) len = BUF_MAX - 1;
+            char tmp[BUF_MAX];
+            for (int j = 0; j < len; j++) tmp[j] = fbuf[s + j];
+            tmp[len] = 0;
+            push_line(tmp);
+            s = i + 1;
+        }
+    }
+}
+
+static void cmd_rm(const char *name) {
+    if (fs_delete(name) < 0) push_line("File not found");
+    else push_line("Deleted");
+}
+
+static void cmd_touch(const char *name) {
+    fs_write(name, "", 0);
+    push_line("Created");
+}
+
 static void cmd_help(void) {
     push_line("Commands:");
     push_line("  help                 - this help");
@@ -55,7 +104,11 @@ static void cmd_help(void) {
 
 static void HelpMore(void) {
     push_line("--- MORE COMMANDS ---");
-    push_line("In dev");
+    push_line("  ls                   - list files");
+    push_line("  cat <file>           - print file");
+    push_line("  edit <file>          - open in editor");
+    push_line("  touch <file>         - create empty file");
+    push_line("  rm <file>            - delete file");
 }
 
 static void cmd_about(void) {
@@ -206,6 +259,11 @@ static void run_command(void) {
     else if (str_eq(cmd, "demo3d"))       { push_line("Running: demo3d");  shell_run_game("demo3d"); }
     else if (str_eq(cmd, "chat"))         shell_run_chat();
     else if (str_eq(cmd, "more"))         HelpMore();
+    else if (str_eq(cmd, "ls"))          cmd_ls();
+    else if (starts_with(cmd, "cat "))   cmd_cat(cmd + 4);
+    else if (starts_with(cmd, "rm "))    cmd_rm(cmd + 3);
+    else if (starts_with(cmd, "touch ")) cmd_touch(cmd + 6);
+    else if (starts_with(cmd, "edit "))  shell_run_editor(cmd + 5);
     else push_line("Unknown. Type 'help'.");
 
     len = 0; buf[0] = 0;

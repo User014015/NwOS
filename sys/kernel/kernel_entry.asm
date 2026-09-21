@@ -34,7 +34,7 @@ _start:
     mov edi, __bss_start
     mov ecx, __bss_end
     sub ecx, edi
-    jbe .bss_skip
+    ; jbe .bss_skip
     xor eax, eax
     rep stosb
 .bss_skip:
@@ -43,7 +43,7 @@ _start:
     mov al, 'B'
     out dx, al
 
-    mov esp, stack_top
+        mov esp, 0x300000
 
     mov dx, 0x3F8
     mov al, 'S'

@@ -10,19 +10,28 @@
 #include "raycast.h"
 #include "talons.h"
 #include "chat.h"
+#include "fs.h"
+#include "editor.h"
 
 static void redraw(void);
 static void draw_topbar(void);
+unsigned char g_last_key_debug = 0;
+int g_after_buflen = 0;
+int g_ekh_count = 0;
+
+int g_buf_at_open   = 0;
+int g_buf_before_ek = 0;
+int g_buf_after_ek  = 0;
 
 typedef enum {
     SCR_WELCOME, SCR_MENU, SCR_GAMES, SCR_SHELL,
     SCR_CALC, SCR_GAME, SCR_SNAKE, SCR_DEMO3D, SCR_RAYCAST, SCR_TALONS,
-    SCR_CHAT
+    SCR_CHAT, SCR_EDITOR
 } screen_t;
 static screen_t current = SCR_WELCOME;
 
 // Welcome
-static const char *welcome_items[] = { "Games", "Calculator", "Shell", "Chat", "Reboot" };
+static const char *welcome_items[] = { "Games", "Editor", "Shell", "Chat", "Reboot" };
 #define WELCOME_N 5
 static int welcome_sel = 0;
 #define WELCOME_BX 120
@@ -64,6 +73,13 @@ static char game_name[32] = "?";
 
 static int cursor_x = 320, cursor_y = 240;
 
+static unsigned char g_last_key = 0;
+static int           g_last_want = 0;
+
+int g_open_count = 0;
+
+int g_dbg_buflen = 0;
+
 static unsigned int g_fps = 0;
 void shell_goto_menu(void)    { current = SCR_MENU;    }
 void shell_apply_theme(void) { redraw(); }
@@ -90,6 +106,12 @@ void shell_run_game2d(const char *name) {
     int i = 0;
     while (name[i] && i < 31) { game_name[i] = name[i]; i++; }
     game_name[i] = 0;
+}
+void shell_run_editor(const char *name) {
+    editor_open(name);
+    current = SCR_EDITOR;
+    extern int editor_want_quit_debug(void);
+    g_last_want = editor_want_quit_debug();
 }
 static const unsigned char cursor_shape[18][11] = {
     {0,0,0,0,0,0,0,0,0,0,0},
@@ -134,7 +156,7 @@ void shell_run_game(const char *name) {
 static void draw_welcome(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.1  |  Welcome", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.2  |  Welcome", THEME_BAR_FG, THEME_BAR);
 
     gfx_puts(120, 40, "=== WELCOME TO NwOS ===", YELLOW, THEME_BG);
     gfx_puts(190, 60, "Pick an option below", THEME_FG, THEME_BG);
@@ -280,6 +302,7 @@ static void redraw(void) {
         case SCR_RAYCAST: raycast_draw(); break;
         case SCR_TALONS: talons_draw(); break;
         case SCR_CHAT: chat_draw(); break;
+        case SCR_EDITOR: editor_draw(); break;
     }
     draw_cursor(cursor_x, cursor_y);
     draw_topbar();
@@ -327,19 +350,20 @@ static int u2s(unsigned int v, char *out) {
 static void draw_topbar(void) {
     gfx_rect(0, 0, 640, 32, THEME_BAR);
 
-    const char *title = "NwOS 2.0.1";
+    const char *title = "NwOS 2.0.2";
     switch (current) {
-        case SCR_WELCOME: title = "NwOS 2.0.1  |  Welcome";       break;
-        case SCR_MENU:    title = "NwOS 2.0.1  |  Personal Menu"; break;
-        case SCR_SHELL:   title = "NwOS 2.0.1  |  Shell";         break;
-        case SCR_CALC:    title = "NwOS 2.0.1  |  Calculator";    break;
-        case SCR_GAME:    title = "NwOS 2.0.1  |  Game";          break;
-        case SCR_GAMES: title = "NwOS 2.0.1  |  Games"; break;
-        case SCR_SNAKE: title = "NwOS 2.0.1  |  Snake"; break;
-        case SCR_DEMO3D: title = "NwOS 2.0.1  |  3D Demo";  break;
-        case SCR_RAYCAST: title = "NwOS 2.0.1  |  Castle NwOS"; break;
-        case SCR_TALONS: title = "NwOS 2.0.1  |  Talons"; break;
-        case SCR_CHAT: title = "NwOS 2.0.1  |  Chat"; break;
+        case SCR_WELCOME: title = "NwOS 2.0.2  |  Welcome";       break;
+        case SCR_MENU:    title = "NwOS 2.0.2  |  Personal Menu"; break;
+        case SCR_SHELL:   title = "NwOS 2.0.2  |  Shell";         break;
+        case SCR_CALC:    title = "NwOS 2.0.2  |  Calculator";    break;
+        case SCR_GAME:    title = "NwOS 2.0.2  |  Game";          break;
+        case SCR_GAMES:   title = "NwOS 2.0.2  |  Games";         break;
+        case SCR_SNAKE:   title = "NwOS 2.0.2  |  Snake";         break;
+        case SCR_DEMO3D:  title = "NwOS 2.0.2  |  3D Demo";       break;
+        case SCR_RAYCAST: title = "NwOS 2.0.2  |  Castle NwOS";   break;
+        case SCR_TALONS:  title = "NwOS 2.0.2  |  Talons";        break;
+        case SCR_CHAT:    title = "NwOS 2.0.2  |  Chat";          break;
+        case SCR_EDITOR:  title = "NwOS 2.0.2  |  Editor";        break;
     }
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char buf[64];
@@ -359,6 +383,16 @@ static void draw_topbar(void) {
 
     int tw = i * 8;
     gfx_puts(640 - tw - 8, 8, buf, THEME_BAR_FG, THEME_BAR);
+    extern unsigned char g_last_key_debug;
+    char o4[16]; int k4 = 0;
+    const char *p4 = "K:";
+    while (*p4) o4[k4++] = *p4++;
+    const char *hex = "0123456789ABCDEF";
+    unsigned int kv = g_last_key_debug;
+    o4[k4++] = hex[(kv >> 4) & 0xF];
+    o4[k4++] = hex[kv & 0xF];
+    o4[k4] = 0;
+    gfx_puts(360, 8, o4, THEME_BAR_FG, THEME_BAR);
 }
 void kernel_main(void) {
     outb(0x21, 0xFF);
@@ -370,6 +404,7 @@ void kernel_main(void) {
     timer_init();
     metrics_init();
     shell_init();
+    fs_init();
     shell_apply_theme();
     redraw();
 
@@ -414,70 +449,49 @@ void kernel_main(void) {
         if (keyboard_has_input()) {
             char c = keyboard_getchar();
             unsigned char u = (unsigned char)c;
+            g_last_key = u;
 
-            if (u == KEY_ESC) {
-                if (current == SCR_SHELL)      current = SCR_WELCOME;
-                else if (current == SCR_MENU)  current = SCR_SHELL;
-                else if (current == SCR_GAME)  current = SCR_SHELL;
-                else if (current == SCR_SNAKE) current = SCR_GAMES;
-                else if (current == SCR_GAMES) current = SCR_WELCOME;
-                else if (current == SCR_CHAT) current = SCR_WELCOME;
-                else                           current = SCR_WELCOME;
+            if (u == 0) {
+            }
+            else if (current == SCR_EDITOR) {
+                editor_handle_key(c);
+                if (editor_want_quit()) {
+                    editor_clear_quit();
+                    current = SCR_WELCOME;
+                }
                 dirty = 1;
-            } else {
+            }
+            else if (current == SCR_CHAT) {
+                chat_handle_key(c);
+                dirty = 1;
+            }
+            else if (current == SCR_SHELL) {
+                shell_handle_key(c);
+                dirty = 1;
+            }
+            else if (u == KEY_ESC) {
+                if (current == SCR_MENU)         current = SCR_SHELL;
+                else if (current == SCR_GAME)    current = SCR_SHELL;
+                else if (current == SCR_SNAKE)   current = SCR_GAMES;
+                else if (current == SCR_GAMES)   current = SCR_WELCOME;
+                else if (current == SCR_TALONS)  current = SCR_GAMES;
+                else if (current == SCR_RAYCAST) current = SCR_GAMES;
+                else if (current == SCR_DEMO3D)  current = SCR_GAMES;
+                else                             current = SCR_WELCOME;
+                dirty = 1;
+            }
+            else {
                 switch (current) {
-                    case SCR_GAMES:
-                        if (u == KEY_UP   && games_sel > 0)         { games_sel--; dirty = 1; }
-                        if (u == KEY_DOWN && games_sel < GAMES_N-1) { games_sel++; dirty = 1; }
-                        if (u == KEY_ENTER) {
-                            if (games_sel == 0)      { snake_init();          current = SCR_SNAKE;   }
-                            else if (games_sel == 1) { demo3d_init();         current = SCR_DEMO3D;  }
-                            else if (games_sel == 2) { raycast_init();        current = SCR_RAYCAST; }
-                            else if (games_sel == 3) { talons_init();         current = SCR_TALONS;  }
-                            else if (games_sel == 4) { current = SCR_WELCOME; }
-                            dirty = 1;
-                        }
-                        break;
-
-                    case SCR_TALONS:
-                        if (u == KEY_UP || u == KEY_DOWN || u == KEY_LEFT || u == KEY_RIGHT ||
-                            u == 'w' || u == 'W' || u == 's' || u == 'S') {
-                            talons_handle_key(u);
-                        }
-                        else if (current == SCR_TALONS) current = SCR_GAMES;
-                        break;
-
-                    case SCR_RAYCAST:
-                        if (u == 'w' || u == 'W' || u == 's' || u == 'S' ||
-                            u == 'a' || u == 'A' || u == 'd' || u == 'D' ||
-                            u == ' ' ||
-                            u == KEY_UP || u == KEY_DOWN || u == KEY_LEFT || u == KEY_RIGHT) {
-                            raycast_handle_key(u);
-                            dirty = 1;
-                        }
-                        else if (current == SCR_RAYCAST) current = SCR_GAMES;
-                        break;
-
-                    case SCR_DEMO3D:
-                        break;
-
-                    case SCR_SNAKE:
-                        if (u == ' ') {
-                            if (snake_is_over()) { snake_init(); dirty = 1; }
-                        } else if (u == KEY_UP || u == KEY_DOWN || u == KEY_LEFT || u == KEY_RIGHT) {
-                            snake_handle_key(u);
-                        }
-                        break;
                     case SCR_WELCOME:
                         if (u == KEY_UP && welcome_sel > 0)             { welcome_sel--; dirty = 1; }
                         if (u == KEY_DOWN && welcome_sel < WELCOME_N-1) { welcome_sel++; dirty = 1; }
                         if (u == KEY_ENTER) {
                             switch (welcome_sel) {
                                 case 0: games_sel = 0; current = SCR_GAMES; break;
-                                case 1: shell_run_calc();    break;
-                                case 2: current = SCR_SHELL; break;
-                                case 3: shell_run_chat(); break;
-                                case 4: gfx_clear(BLACK); gfx_flip(); break;
+                                case 1: shell_run_editor("readme.txt");     break;
+                                case 2: current = SCR_SHELL;                break;
+                                case 3: shell_run_chat();                   break;
+                                case 4: gfx_clear(BLACK); gfx_flip();       break;
                             }
                             dirty = 1;
                         }
@@ -489,14 +503,15 @@ void kernel_main(void) {
                         if (u == KEY_ENTER && menu_sel == 0)       { current = SCR_SHELL; dirty = 1; }
                         break;
 
-                    case SCR_SHELL:
-                        shell_handle_key(c);
-                        dirty = 1;
-                        break;
-                    
-                    case SCR_CHAT:
-                        if (u >= 0x20 || u == KEY_BACKSPACE || u == KEY_ENTER) {
-                            chat_handle_key(c);
+                    case SCR_GAMES:
+                        if (u == KEY_UP   && games_sel > 0)         { games_sel--; dirty = 1; }
+                        if (u == KEY_DOWN && games_sel < GAMES_N-1) { games_sel++; dirty = 1; }
+                        if (u == KEY_ENTER) {
+                            if      (games_sel == 0) { snake_init();   current = SCR_SNAKE;   }
+                            else if (games_sel == 1) { demo3d_init();  current = SCR_DEMO3D;  }
+                            else if (games_sel == 2) { raycast_init(); current = SCR_RAYCAST; }
+                            else if (games_sel == 3) { talons_init();  current = SCR_TALONS;  }
+                            else if (games_sel == 4) { current = SCR_WELCOME; }
                             dirty = 1;
                         }
                         break;
@@ -515,6 +530,41 @@ void kernel_main(void) {
                             calc_buf[calc_len] = 0;
                             dirty = 1;
                         }
+                        break;
+
+                    case SCR_SNAKE:
+                        if (u == ' ') {
+                            if (snake_is_over()) { snake_init(); dirty = 1; }
+                        } else if (u == KEY_UP || u == KEY_DOWN || u == KEY_LEFT || u == KEY_RIGHT) {
+                            snake_handle_key(u);
+                        }
+                        break;
+
+                    case SCR_TALONS:
+                        if (u == KEY_UP || u == KEY_DOWN || u == KEY_LEFT || u == KEY_RIGHT ||
+                            u == 'w' || u == 'W' || u == 's' || u == 'S' ||
+                            u == 'f' || u == 'F') {
+                            talons_handle_key(u);
+                        }
+                        break;
+
+                    case SCR_RAYCAST:
+                        if (u == 'w' || u == 'W' || u == 's' || u == 'S' ||
+                            u == 'a' || u == 'A' || u == 'd' || u == 'D' ||
+                            u == ' ' ||
+                            u == KEY_UP || u == KEY_DOWN || u == KEY_LEFT || u == KEY_RIGHT) {
+                            raycast_handle_key(u);
+                            dirty = 1;
+                        }
+                        break;
+
+                    case SCR_DEMO3D:
+                        break;
+
+                    case SCR_GAME:
+                    case SCR_CHAT:
+                    case SCR_EDITOR:
+                    case SCR_SHELL:
                         break;
                 }
             }

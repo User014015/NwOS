@@ -13,9 +13,16 @@ static unsigned int cpu_pct = 0;
 static unsigned int ram_pct = 0;
 static unsigned int ram_used_kb = 0;
 
+extern char __bss_start;
+extern char __bss_end;
+
+#define RAM_BUDGET_KB  1024
+
 void metrics_init(void) {
-    unsigned int used = (unsigned int)&kernel_end - 0x10000u;
-    ram_used_kb = used / 1024u;
+    unsigned int code_kb = 64;
+    unsigned int bss_kb  = ((unsigned int)&__bss_end - (unsigned int)&__bss_start) / 1024;
+
+    ram_used_kb = code_kb + bss_kb;
     ram_pct = ram_used_kb * 100u / RAM_BUDGET_KB;
     if (ram_pct > 100) ram_pct = 100;
 }

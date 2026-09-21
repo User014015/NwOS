@@ -47,17 +47,20 @@ static void process_scancode(unsigned char sc) {
         extended = 0;
         if (sc & 0x80) return;
         switch (sc) {
-            case 0x48: push(KEY_UP);    return;
-            case 0x50: push(KEY_DOWN);  return;
-            case 0x4B: push(KEY_LEFT);  return;
-            case 0x4D: push(KEY_RIGHT); return;
+            case 0x48: push(KEY_UP);     return;
+            case 0x50: push(KEY_DOWN);   return;
+            case 0x4B: push(KEY_LEFT);   return;
+            case 0x4D: push(KEY_RIGHT);  return;
+            case 0x47: push(KEY_HOME);   return;
+            case 0x4F: push(KEY_END);    return;
+            case 0x53: push(KEY_DELETE); return;
+            case 0x49: push(KEY_PGUP);   return;
+            case 0x51: push(KEY_PGDN);   return;
             default: return;
         }
     }
 
     if (sc == 0xE0) { extended = 1; return; }
-
-    /* Release обычных клавиш */
     if (sc & 0x80) {
         unsigned char code = sc & 0x7F;
         if (code == 0x2A) shift_l = 0;
@@ -113,5 +116,8 @@ int keyboard_has_input(void) {
 
 char keyboard_getchar(void) {
     kbd_poll();
-    return pop();
+    extern unsigned char g_last_key_debug;
+    char c = pop();
+    g_last_key_debug = (unsigned char)c;
+    return c;
 }
