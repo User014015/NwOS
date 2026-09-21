@@ -117,17 +117,29 @@ int snake_update(void) {
         }
     }
     if (will_grow) {
+        for (int i = snake_len - 1; i > 0; i--)
+            snake[i] = snake[i - 1];
+        if (snake_len < SNAKE_MAX_LEN) {
+            snake[snake_len] = snake[snake_len - 1];
+            snake_len++;
+        }
+
         score += 10;
         unsigned int mi = 180u - (unsigned int)(score / 10);
         if (mi < 80u) mi = 80u;
         move_interval_ms = mi;
         spawn_food();
+
+        snake[0].x = nx;
+        snake[0].y = ny;
+        return 1;
     } else {
-        for (int i = snake_len - 1; i > 0; i--) snake[i] = snake[i-1];
+        for (int i = snake_len - 1; i > 0; i--)
+            snake[i] = snake[i - 1];
+        snake[0].x = nx;
+        snake[0].y = ny;
+        return 1;
     }
-    snake[0].x = nx;
-    snake[0].y = ny;
-    return 1;
 }
 static void draw_int(int x, int y, int v, unsigned char fg, unsigned char bg) {
     char buf[16]; int k = 0;

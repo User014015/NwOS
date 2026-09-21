@@ -13,6 +13,10 @@ static int  line_count = 0;
 static int scroll_offset = 0;
 extern unsigned char THEME_BG, THEME_FG, THEME_BAR, THEME_BAR_FG;
 extern unsigned char THEME_BTN, THEME_BTN_FG, THEME_SEL, THEME_SEL_FG;
+static void push_line(const char *s);
+static const char *parse_arg(const char *s, const char *cmd);
+static void copy_arg(const char *s, char *out, int max);
+static int starts_with(const char *s, const char *p);
 
 static void push_line(const char *s) {
     if (line_count == LINE_MAX) {
@@ -35,29 +39,76 @@ static int str_eq(const char *a, const char *b) {
     return *a == *b;
 }
 
-static void cmd_ls(void) {
-    int n = fs_count();
-    if (n == 0) { push_line("(no files)"); return; }
+static const char *parse_arg(const char *s, const char *cmd) {
+    int cl = 0; while (cmd[cl]) cl++;
+    s += cl;
+    while (*s == ' ') s++;
+    if (*s == '(') s++;
+    if (*s == '"') s++;
+    return s;
+}
+static void copy_arg(const char *s, char *out, int max) {
+    int i = 0;
+    while (*s && *s != '"' && *s != ')' && i < max - 1) out[i++] = *s++;
+    out[i] = 0;
+}
+
+static void cmd_dir(const char *path) {
+    if (!path || !*path) path = fs_pwd();
+    int n = fs_count(path);
+    if (n < 0) { push_line("Not a directory"); return; }
+    if (n == 0) { push_line("(empty)"); return; }
     for (int i = 0; i < n; i++) {
-        char b[BUF_MAX];
-        int k = 0;
-        const char *nm = fs_name(i);
-        while (*nm && k < BUF_MAX - 12) b[k++] = *nm++;
-        while (k < 24) b[k++] = ' ';
-        int sz = fs_size(i);
-        char t[8]; int tt = 0;
-        if (sz == 0) t[tt++] = '0';
-        while (sz) { t[tt++] = '0' + (sz % 10); sz /= 10; }
-        while (tt) b[k++] = t[--tt];
-        b[k++] = ' '; b[k++] = 'B';
+        const char *nm = fs_name_at(path, i);
+        int t  = fs_type_at(path, i);
+        int sz = fs_size_at(path, i);
+        char b[BUF_MAX]; int k = 0;
+        while (*nm && k < BUF_MAX - 16) b[k++] = *nm++;
+        if (t == FS_DIR) {
+            b[k++] = '/';
+        } else {
+            while (k < 20) b[k++] = ' ';
+            char t2[8]; int tt = 0;
+            if (sz == 0) t2[tt++] = '0';
+            while (sz) { t2[tt++] = '0' + (sz % 10); sz /= 10; }
+            while (tt) b[k++] = t2[--tt];
+            b[k++] = ' '; b[k++] = 'B';
+        }
         b[k] = 0;
         push_line(b);
     }
 }
 
-static void cmd_cat(const char *name) {
+static void cmd_cd(const char *path) {
+    if (fs_cd(path) < 0) push_line("Not found");
+    else                 push_line(fs_pwd());
+}
+
+static void cmd_mkdir(const char *path) {
+    if (fs_mkdir(path) < 0) push_line("Failed");
+    else                    push_line("Created");
+}
+
+static void cmd_touch(const char *path) {
+    if (fs_touch(path) < 0) push_line("Failed");
+    else                    push_line("Created");
+}
+
+static void cmd_rm(const char *path) {
+    int r = fs_delete(path);
+    if (r == 0)       push_line("Removed");
+    else if (r == -2) push_line("Cannot delete root");
+    else if (r == -3) push_line("Directory not empty");
+    else              push_line("Not found");
+}
+
+static void cmd_pwd(void) {
+    push_line(fs_pwd());
+}
+
+static void cmd_cat(const char *path) {
     static char fbuf[FS_MAX_SIZE + 1];
-    int n = fs_read(name, fbuf, FS_MAX_SIZE);
+    int n = fs_read(path, fbuf, FS_MAX_SIZE);
     if (n < 0) { push_line("File not found"); return; }
     int s = 0;
     for (int i = 0; i <= n; i++) {
@@ -71,16 +122,6 @@ static void cmd_cat(const char *name) {
             s = i + 1;
         }
     }
-}
-
-static void cmd_rm(const char *name) {
-    if (fs_delete(name) < 0) push_line("File not found");
-    else push_line("Deleted");
-}
-
-static void cmd_touch(const char *name) {
-    fs_write(name, "", 0);
-    push_line("Created");
 }
 
 static void cmd_help(void) {
@@ -109,10 +150,18 @@ static void HelpMore(void) {
     push_line("  edit <file>          - open in editor");
     push_line("  touch <file>         - create empty file");
     push_line("  rm <file>            - delete file");
+    push_line("  dir / dir(\"path\")    - list directory");
+    push_line("  cd(\"path\")           - change directory");
+    push_line("  pwd                  - print current path");
+    push_line("  mkdir(\"path\")        - create directory");
+    push_line("  touch(\"path\")        - create empty file");
+    push_line("  cat(\"path\")          - print file");
+    push_line("  edit(\"path\")         - open in editor");
+    push_line("  rm(\"path\")           - delete");
 }
 
 static void cmd_about(void) {
-    push_line("NwOS v2.0.0");
+    push_line("NwOS v2.0.3");
     push_line("Copyright (c) 2026 User014015"); // mit
     push_line("Kernel: C + NASM, clang + ld.lld");
     push_line("VGA 640x480x16, PS/2 keyboard + mouse");
@@ -259,11 +308,20 @@ static void run_command(void) {
     else if (str_eq(cmd, "demo3d"))       { push_line("Running: demo3d");  shell_run_game("demo3d"); }
     else if (str_eq(cmd, "chat"))         shell_run_chat();
     else if (str_eq(cmd, "more"))         HelpMore();
-    else if (str_eq(cmd, "ls"))          cmd_ls();
-    else if (starts_with(cmd, "cat "))   cmd_cat(cmd + 4);
-    else if (starts_with(cmd, "rm "))    cmd_rm(cmd + 3);
-    else if (starts_with(cmd, "touch ")) cmd_touch(cmd + 6);
-    else if (starts_with(cmd, "edit "))  shell_run_editor(cmd + 5);
+    else if (str_eq(cmd, "dir") || str_eq(cmd, "ls")) { cmd_dir(fs_pwd()); }
+    else if (starts_with(cmd, "dir(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_dir(a); }
+    else if (starts_with(cmd, "cd(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_cd(a); }
+    else if (starts_with(cmd, "cd ")) {cmd_cd(cmd + 3);}
+    else if (starts_with(cmd, "mkdir(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 6, a, sizeof(a)); cmd_mkdir(a); }
+    else if (starts_with(cmd, "touch(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 6, a, sizeof(a)); cmd_touch(a); }
+    else if (starts_with(cmd, "touch ")) { cmd_touch(cmd + 6); }
+    else if (starts_with(cmd, "rm(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_rm(a); }
+    else if (starts_with(cmd, "rm ")) { cmd_rm(cmd + 3); }
+    else if (str_eq(cmd, "pwd")) { cmd_pwd(); }
+    else if (starts_with(cmd, "cat(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_cat(a);}
+    else if (starts_with(cmd, "cat ")) {cmd_cat(cmd + 4);}
+    else if (starts_with(cmd, "edit(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 5, a, sizeof(a)); shell_run_editor(a);}
+    else if (starts_with(cmd, "edit ")) {shell_run_editor(cmd + 5);}
     else push_line("Unknown. Type 'help'.");
 
     len = 0; buf[0] = 0;
@@ -273,7 +331,7 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.1");
+    push_line("NwOS Shell v2.0.3");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
@@ -282,7 +340,7 @@ void shell_init(void) {
 void shell_draw(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.1  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.3  |  Shell", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;

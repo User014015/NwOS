@@ -156,7 +156,7 @@ void shell_run_game(const char *name) {
 static void draw_welcome(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.2  |  Welcome", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.3  |  Welcome", THEME_BAR_FG, THEME_BAR);
 
     gfx_puts(120, 40, "=== WELCOME TO NwOS ===", YELLOW, THEME_BG);
     gfx_puts(190, 60, "Pick an option below", THEME_FG, THEME_BG);
@@ -350,20 +350,20 @@ static int u2s(unsigned int v, char *out) {
 static void draw_topbar(void) {
     gfx_rect(0, 0, 640, 32, THEME_BAR);
 
-    const char *title = "NwOS 2.0.2";
+    const char *title = "NwOS 2.0.3";
     switch (current) {
-        case SCR_WELCOME: title = "NwOS 2.0.2  |  Welcome";       break;
-        case SCR_MENU:    title = "NwOS 2.0.2  |  Personal Menu"; break;
-        case SCR_SHELL:   title = "NwOS 2.0.2  |  Shell";         break;
-        case SCR_CALC:    title = "NwOS 2.0.2  |  Calculator";    break;
-        case SCR_GAME:    title = "NwOS 2.0.2  |  Game";          break;
-        case SCR_GAMES:   title = "NwOS 2.0.2  |  Games";         break;
-        case SCR_SNAKE:   title = "NwOS 2.0.2  |  Snake";         break;
-        case SCR_DEMO3D:  title = "NwOS 2.0.2  |  3D Demo";       break;
-        case SCR_RAYCAST: title = "NwOS 2.0.2  |  Castle NwOS";   break;
-        case SCR_TALONS:  title = "NwOS 2.0.2  |  Talons";        break;
-        case SCR_CHAT:    title = "NwOS 2.0.2  |  Chat";          break;
-        case SCR_EDITOR:  title = "NwOS 2.0.2  |  Editor";        break;
+        case SCR_WELCOME: title = "NwOS 2.0.3  |  Welcome";       break;
+        case SCR_MENU:    title = "NwOS 2.0.3  |  Personal Menu"; break;
+        case SCR_SHELL:   title = "NwOS 2.0.3  |  Shell";         break;
+        case SCR_CALC:    title = "NwOS 2.0.3  |  Calculator";    break;
+        case SCR_GAME:    title = "NwOS 2.0.3  |  Game";          break;
+        case SCR_GAMES:   title = "NwOS 2.0.3  |  Games";         break;
+        case SCR_SNAKE:   title = "NwOS 2.0.3  |  Snake";         break;
+        case SCR_DEMO3D:  title = "NwOS 2.0.3  |  3D Demo";       break;
+        case SCR_RAYCAST: title = "NwOS 2.0.3  |  Castle NwOS";   break;
+        case SCR_TALONS:  title = "NwOS 2.0.3  |  Talons";        break;
+        case SCR_CHAT:    title = "NwOS 2.0.3  |  Chat";          break;
+        case SCR_EDITOR:  title = "NwOS 2.0.3  |  Editor";        break;
     }
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char buf[64];
@@ -402,6 +402,7 @@ void kernel_main(void) {
     keyboard_init();
     mouse_init();
     timer_init();
+    __asm__ volatile ("sti");
     metrics_init();
     shell_init();
     fs_init();
@@ -414,7 +415,6 @@ void kernel_main(void) {
     unsigned int metric_last_ms  = timer_ms();
 
     while (1) {
-        timer_poll();    
         int dirty = 0;
         if (current == SCR_DEMO3D) {
             if (demo3d_update()) dirty = 1;
@@ -488,7 +488,7 @@ void kernel_main(void) {
                         if (u == KEY_ENTER) {
                             switch (welcome_sel) {
                                 case 0: games_sel = 0; current = SCR_GAMES; break;
-                                case 1: shell_run_editor("readme.txt");     break;
+                                case 1: shell_run_editor("/home/readme.txt"); break;
                                 case 2: current = SCR_SHELL;                break;
                                 case 3: shell_run_chat();                   break;
                                 case 4: gfx_clear(BLACK); gfx_flip();       break;

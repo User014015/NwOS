@@ -1,6 +1,9 @@
 [BITS 32]
 global idt_load
 global isr_default
+global irq0_stub
+
+extern irq0_handler
 
 section .text
 idt_load:
@@ -10,8 +13,13 @@ idt_load:
 
 isr_default:
     pusha
-    mov al, 0x20
-    out 0x20, al
-    out 0xA0, al
+    mov edi, 0xB8000 + 158
+    mov word [edi], 0x4F45
+    popa
+    iret
+
+irq0_stub:
+    pusha
+    call irq0_handler
     popa
     iret

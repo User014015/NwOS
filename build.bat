@@ -87,7 +87,11 @@ for %%F in (build\kernel.bin) do set KBSIZE=%%~zF
 echo      kernel.bin size: %KBSIZE% bytes
 
 echo [6/6] Creating bootable image...
-copy /b build\boot.bin + build\kernel.bin build\os.img >nul
+fsutil file createnew build\os.img 1474560 >nul 2>nul
+
+dd if=build\boot.bin of=build\os.img bs=512 count=1 conv=notrunc 2>nul
+
+dd if=build\kernel.bin of=build\os.img bs=512 seek=1 conv=notrunc 2>nul
 if errorlevel 1 goto :error
 
 echo.

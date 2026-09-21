@@ -1,8 +1,7 @@
 [BITS 16]
 [ORG 0x7C00]
 
-KERNEL_SEG   equ 0x1000
-KERNEL_SECT equ 127 ; SECTORS
+KERNEL_SEG equ 0x1000
 
 start:
     cli
@@ -12,23 +11,143 @@ start:
     mov ss, ax
     mov sp, 0x7C00
     mov [boot_drive], dl
-    mov ax, 0x0012
-    int 0x10
+
     mov ax, KERNEL_SEG
     mov es, ax
     xor bx, bx
     mov ah, 0x02
-    mov al, KERNEL_SECT
+    mov al, 17
     mov ch, 0
     mov cl, 2
     mov dh, 0
     mov dl, [boot_drive]
     int 0x13
     jc  disk_error
+    ; load sectors
+    mov ax, KERNEL_SEG
+    add ax, 0x0220
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 0
+    mov cl, 1
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x0460
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 1
+    mov cl, 1
+    mov dh, 0
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x06A0
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 1
+    mov cl, 1
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x08E0
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 2
+    mov cl, 1
+    mov dh, 0
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x0B20
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 2
+    mov cl, 1
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x0D60
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 3
+    mov cl, 1
+    mov dh, 0
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x0FA0
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 3
+    mov ch, 3
+    mov cl, 1
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, KERNEL_SEG
+    add ax, 0x1000
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 6
+    mov ch, 3
+    mov cl, 4
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, 0x20C0
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 2
+    mov ch, 3
+    mov cl, 10
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
+    mov ax, 0x0012
+    int 0x10
+
     in  al, 0x92
     or  al, 2
     and al, 0xFE
     out 0x92, al
+
     lgdt [gdt_descriptor]
     mov eax, cr0
     or  eax, 1
@@ -44,7 +163,6 @@ pm_entry:
     mov gs, ax
     mov ss, ax
     mov esp, 0x90000
-
     jmp 0x10000
 
 [BITS 16]
@@ -79,8 +197,8 @@ gdt_descriptor:
     dw gdt_end - gdt_start - 1
     dd gdt_start
 
-CODE_SEG equ gdt_code - gdt_start   ; = 0x08
-DATA_SEG equ gdt_data - gdt_start   ; = 0x10
+CODE_SEG equ gdt_code - gdt_start
+DATA_SEG equ gdt_data - gdt_start
 
 times 510-($-$$) db 0
 dw 0xAA55

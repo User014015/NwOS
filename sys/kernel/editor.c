@@ -67,20 +67,20 @@ static void editor_save(void) {
 }
 
 void editor_open(const char *filename) {
-    extern int g_buf_at_open;
-    g_buf_at_open = -999;
-    extern int g_open_count;
-    g_open_count++;
     str_copy(current_file, filename, FS_NAME_LEN);
     int n = fs_read(current_file, buffer, EDITOR_MAX_SIZE - 1);
-    if (n < 0) { buf_len = 0; buffer[0] = 0; }
-    else       { buf_len = n; }
+    if (n < 0) {
+        fs_touch(current_file);
+        buf_len = 0;
+        buffer[0] = 0;
+    } else {
+        buf_len = n;
+    }
     cursor = 0;
     scroll_line = 0;
     modified = 0;
     want_exit = 0;
     status_timer = 0;
-    g_buf_at_open = buf_len;
 }
 
 const char *editor_filename(void) { return current_file; }
