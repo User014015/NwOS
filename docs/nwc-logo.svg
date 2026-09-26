@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="hexGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#5B7FE0"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
+    </linearGradient>
+
+    <clipPath id="hexClip">
+      <polygon points="256,16 464,136 464,376 256,496 48,376 48,136"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#hexClip)">
+    <rect width="512" height="512" fill="url(#hexGradient)"/>
+
+    <polygon points="0,0 512,0 512,220 0,340"
+             fill="#ffffff" opacity="0.08"/>
+  </g>
+
+  <polygon points="256,16 464,136 464,376 256,496 48,376 48,136"
+           fill="none" stroke="#ffffff" stroke-opacity="0.2" stroke-width="2"/>
+
+  <text x="256" y="325"
+        font-family="'SF Mono', 'Consolas', 'Menlo', monospace"
+        font-size="180"
+        font-weight="700"
+        fill="#ffffff"
+        text-anchor="middle"
+        letter-spacing="-4">NwC</text>
+</svg>

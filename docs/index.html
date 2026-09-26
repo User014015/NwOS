@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NwOS — A hobby operating system</title>
+    <meta name="description" content="NwOS — an operating system written from scratch in NASM and C, with its own filesystem and NwC compiler.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" sizes="32x32" href="LogoNwOS.png">
+</head>
+<body>
+    <header>
+        <h1>NwOS</h1>
+        <p>An operating system written from scratch in NASM + C</p>
+
+        <div class="header-actions">
+            <a href="https://github.com/User014015/NwOS/releases/latest"
+               class="button button-primary">
+                Download latest
+            </a>
+            <a href="https://github.com/User014015/NwOS"
+               class="button button-secondary">
+                View on GitHub
+            </a>
+        </div>
+    </header>
+
+    <nav>
+        <a href="#about">About</a>
+        <a href="#downloads">Download</a>
+        <a href="#versions" id="nav-versions">Versions</a>
+    </nav>
+
+    <main>
+        <section id="about">
+            <h2>About the project</h2>
+            <p>
+                NwOS is a small hobby operating system built completely from scratch.
+                It has its own bootloader written in NASM, a C kernel, a simple
+                on-disk filesystem, a text-mode shell with a scrollback buffer,
+                and a compiler (NwC) with its own lexer and parser.
+            </p>
+            <img src="nwc-logo.svg" alt="NwC" width="80">
+
+            <h3>Two branches</h3>
+            <div class="branch-grid">
+                <div class="branch-card">
+                    <h4>2.x — Graphics <span class="tag">active</span></h4>
+                    <p>
+                        Modern version with VGA graphics, mouse, GUI menu,
+                        games (Snake, Castle NwOS, Talons, 3D Demo),
+                        RAM filesystem and text editor.
+                    </p>
+                    <a href="https://github.com/User014015/NwOS/tree/2.x"
+                       class="button button-secondary">View branch 2.x</a>
+                </div>
+                <div class="branch-card">
+                    <h4>1.x — Legacy console</h4>
+                    <p>
+                        First version of NwOS. Text-mode shell only.
+                        Preserved for history, not actively developed.
+                    </p>
+                    <a href="https://github.com/User014015/NwOS/tree/main"
+                       class="button button-secondary">View branch 1.x</a>
+                </div>
+            </div>
+
+            <h3>Features (2.x)</h3>
+            <ul class="features">
+                <li>Custom bootloader (NASM, real mode → protected mode)</li>
+                <li>32-bit C kernel running in ring 0</li>
+                <li>VGA graphics 640×480×16 with double buffering</li>
+                <li>PS/2 keyboard + mouse drivers</li>
+                <li>RAM filesystem with directories</li>
+                <li>Text editor</li>
+                <li>Games: Snake, Castle NwOS (raycasting), Talons, 3D Demo</li>
+                <li>NwC — a compiler for the NwC language</li>
+            </ul>
+        </section>
+
+        <section id="downloads">
+            <h2>Download</h2>
+            <p>
+                Latest stable version:
+                <strong id="latest-version">v2.0.0-beta</strong>
+            </p>
+            <p class="muted">
+                Grab the image from GitHub Releases,
+                run it in QEMU with <code>-drive format=raw,if=floppy,file=os.img</code>.
+            </p>
+            <a href="https://github.com/User014015/NwOS/releases/latest"
+               class="button button-primary">
+                Download latest version
+            </a>
+        </section>
+
+        <section id="versions">
+            <h2>Archive of versions</h2>
+
+            <div class="version-tabs" role="tablist" aria-label="Version family">
+                <button class="version-tab version-tab-active"
+                        data-branch="2"
+                        role="tab"
+                        aria-selected="true">
+                    2.x <span class="tab-hint">Graphics</span>
+                </button>
+                <button class="version-tab"
+                        data-branch="1"
+                        role="tab"
+                        aria-selected="false">
+                    1.x <span class="tab-hint">Legacy</span>
+                </button>
+            </div>
+
+            <p class="muted">
+                Shown version of branch: <strong id="branch-label">2.x</strong>.
+                Click button at top, to switch
+            </p>
+
+            <button id="load-versions" class="button button-primary">
+                Load versions from GitHub
+            </button>
+
+            <ul id="versions-list" hidden>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>
+            NwOS © 2026 —
+            <a href="https://github.com/User014015/NwOS">source code on GitHub</a>
+        </p>
+    </footer>
+
+    <script>
+    (function () {
+        "use strict";
+
+        const GITHUB_USER = "User014015";
+        const GITHUB_REPO = "NwOS";
+        const CACHE_KEY   = "nwos-releases-v2";
+        const CACHE_TIME  = 60 * 60 * 1000; // 1 hour
+
+        const button      = document.getElementById("load-versions");
+        const list        = document.getElementById("versions-list");
+        const latestLabel = document.getElementById("latest-version");
+        const branchLabel = document.getElementById("branch-label");
+        const navVersions = document.getElementById("nav-versions");
+        const tabs        = document.querySelectorAll(".version-tab");
+
+        let currentBranch = "2";
+        let allReleases   = [];
+        let loaded        = false;
+
+        function branchOf(tag) {
+            if (!tag) return "0";
+            const m = tag.match(/^v?(\d+)/);
+            return m ? m[1] : "0";
+        }
+
+        function branchLabelOf(b) {
+            return b + ".x";
+        }
+
+
+        async function fetchReleases() {
+            const cached = localStorage.getItem(CACHE_KEY);
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Date.now() - parsed.time < CACHE_TIME) {
+                        return parsed.data;
+                    }
+                } catch (_) { /* ignore bad cache */ }
+            }
+
+            const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/releases`;
+            const res = await fetch(url, {
+                headers: { "Accept": "application/vnd.github+json" }
+            });
+
+            if (!res.ok) {
+                throw new Error("GitHub API: " + res.status);
+            }
+
+            const data = await res.json();
+
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({
+                    data: data,
+                    time: Date.now()
+                }));
+            } catch (_) { /* storage may be full */ }
+
+            return data;
+        }
+
+
+        function renderBranch(branch) {
+            list.innerHTML = "";
+
+            const items = allReleases.filter(function (r) {
+                return !r.draft && branchOf(r.tag_name) === branch;
+            });
+
+            branchLabel.textContent = branchLabelOf(branch);
+
+            if (items.length === 0) {
+                const li = document.createElement("li");
+                li.className = "empty-row";
+                li.textContent = "No releases in branch. " + branchLabelOf(branch);
+                list.appendChild(li);
+                return;
+            }
+
+            let first = true;
+
+            items.forEach(function (release) {
+                const li = document.createElement("li");
+                const a  = document.createElement("a");
+
+                a.href = release.html_url;
+                a.textContent = release.tag_name;
+
+                if (first) {
+                    const span = document.createElement("span");
+                    span.className = "tag";
+                    span.textContent = "latest";
+                    a.appendChild(document.createTextNode(" "));
+                    a.appendChild(span);
+                    first = false;
+
+                    if (latestLabel && branch === "2") {
+                        latestLabel.textContent = release.tag_name;
+                    }
+                }
+
+                if (release.prerelease) {
+                    const span = document.createElement("span");
+                    span.className = "tag tag-warn";
+                    span.textContent = "pre-release";
+                    a.appendChild(document.createTextNode(" "));
+                    a.appendChild(span);
+                }
+
+                li.appendChild(a);
+                list.appendChild(li);
+            });
+        }
+
+        function setActiveTab(branch) {
+            currentBranch = branch;
+
+            tabs.forEach(function (t) {
+                const isActive = t.dataset.branch === branch;
+                t.classList.toggle("version-tab-active", isActive);
+                t.setAttribute("aria-selected", isActive ? "true" : "false");
+            });
+
+            if (loaded) {
+                renderBranch(branch);
+            } else {
+                branchLabel.textContent = branchLabelOf(branch);
+            }
+        }
+
+        tabs.forEach(function (t) {
+            t.addEventListener("click", function () {
+                setActiveTab(t.dataset.branch);
+            });
+        });
+
+        async function loadVersions() {
+            button.disabled = true;
+            button.textContent = "Loading…";
+
+            try {
+                allReleases = await fetchReleases();
+                loaded = true;
+
+                button.style.display = "none";
+                list.hidden = false;
+
+                renderBranch(currentBranch);
+            } catch (err) {
+                console.error(err);
+                button.disabled = false;
+                button.textContent = "Failed to load — click to retry";
+            }
+        }
+
+        button.addEventListener("click", loadVersions);
+
+        if (navVersions) {
+            navVersions.addEventListener("click", function () {
+                if (button.style.display !== "none") {
+                    loadVersions();
+                }
+            });
+        }
+    })();
+    </script>
+</body>
+</html>
