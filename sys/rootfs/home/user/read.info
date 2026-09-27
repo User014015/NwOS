@@ -1,0 +1,9 @@
+Welcome to NwOS System,
+In home you can:
+make folders,
+make files,
+edit files,
+delete files
+
+Panic dumps:
+sys/panics.dump

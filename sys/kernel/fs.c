@@ -1,26 +1,44 @@
 #include "fs.h"
+#include "fs.h"
+#include "ata.h"
+
+#define FS_METADATA_LBA 100
+#define FS_DATA_LBA_START 10
 
 typedef struct {
+    const char *path;
+    int is_dir;
+    const char *data;
+    int size;
+} init_fs_entry_t;
+
+typedef struct {
+    int used;
+    int type;
+    int parent;
     char name[FS_NAME_LEN];
-    int  type;
-    int  parent;
-    int  used;
-    int  size;
     char data[FS_MAX_SIZE];
+    int size;
 } fs_node_t;
 
+extern const init_fs_entry_t builtin_fs[];
 static fs_node_t nodes[FS_MAX_NODES];
-static int       root;
-static int       current_dir;
+static int root = 0;
+static int current_dir = 0;
 
 static int str_eq(const char *a, const char *b) {
-    while (*a && *b) { if (*a++ != *b++) return 0; }
+    while (*a && *b) { 
+        if (*a++ != *b++) return 0; 
+    }
     return *a == *b;
 }
 
 static void str_copy_n(char *dst, const char *src, int max) {
     int i = 0;
-    while (src[i] && i < max - 1) { dst[i] = src[i]; i++; }
+    while (src[i] && i < max - 1) { 
+        dst[i] = src[i]; 
+        i++; 
+    }
     dst[i] = 0;
 }
 
@@ -28,6 +46,70 @@ static int str_len(const char *s) {
     int n = 0; 
     while (s[n]) n++; 
     return n; 
+}
+#include "fs.h"
+#include "ata.h"
+
+#define FS_METADATA_LBA 2
+
+void fs_sync_to_disk(void) {
+    unsigned char *ptr = (unsigned char *)nodes;
+    for (unsigned int i = 0; i < sizeof(nodes); i += ATA_SECTOR_SIZE) {
+        ata_write_sector(FS_METADATA_LBA + (i / ATA_SECTOR_SIZE), ptr + i);
+    }
+}
+
+void fs_load_from_disk(void) {
+    unsigned char *ptr = (unsigned char *)nodes;
+    for (unsigned int i = 0; i < sizeof(nodes); i += ATA_SECTOR_SIZE) {
+        ata_read_sector(FS_METADATA_LBA + (i / ATA_SECTOR_SIZE), ptr + i);
+    }
+}
+
+void fs_init(void) {
+    ata_init();
+
+    fs_load_from_disk();
+
+    if (!nodes[0].used || nodes[0].type != FS_DIR || nodes[0].name[0] != '/') {
+        for (int i = 0; i < FS_MAX_NODES; i++) {
+            nodes[i].used = 0;
+        }
+
+        root = 0;
+        nodes[root].used   = 1;
+        nodes[root].type   = FS_DIR;
+        nodes[root].parent = -1;
+        str_copy_n(nodes[root].name, "/", FS_NAME_LEN);
+
+        current_dir = root;
+
+        fs_mkdir("/bin");
+        fs_mkdir("/etc");
+        fs_mkdir("/home");
+        fs_mkdir("/home/data");
+        fs_mkdir("/home/user");
+        fs_mkdir("/sys");
+        
+        const char *sh_code = "#!/bin/sh\n";
+        fs_write("/bin/sh", sh_code, str_len(sh_code));
+
+        const char *hostname = "NwOS-PC\nNAME:ROOT\n";
+        fs_write("/etc/hostname", hostname, str_len(hostname));
+
+        const char *os_rel = "NAME=\"NwOS\"\nVERSION=\"1.0\"\nID=nwos\n";
+        fs_write("/etc/os-release", os_rel, str_len(os_rel));
+
+        const char *read_info = "Welcome to NwOS!\nUser environment initialized.\n";
+        fs_write("/home/user/read.info", read_info, str_len(read_info));
+
+        const char *panic_init = "=== PANIC LOG INITIALIZED ===\n";
+        fs_write("/sys/panics.j", panic_init, str_len(panic_init));
+
+        fs_sync_to_disk();
+    }
+
+    current_dir = root;
 }
 
 static int alloc_node(void) {
@@ -175,6 +257,7 @@ int fs_write(const char *path, const char *data, int size) {
 
     for (int j = 0; j < size; j++) nodes[i].data[j] = data[j];
     nodes[i].size = size;
+    fs_sync_to_disk();
     return size;
 }
 
@@ -288,44 +371,26 @@ const char *fs_pwd(void) {
     return buf;
 }
 
-void fs_init(void) {
-    for (int i = 0; i < FS_MAX_NODES; i++) nodes[i].used = 0;
+// type 'rm /' to get fun
 
-    root = 0;
-    nodes[root].used   = 1;
-    nodes[root].type   = FS_DIR;
-    nodes[root].parent = -1;
-    str_copy_n(nodes[root].name, "/", FS_NAME_LEN);
+int fs_delete_recursive(const char *path) {
+    int i = walk(path);
+    if (i < 0) return -1;
 
-    current_dir = root;
+    if (i == root) {
+        for (int k = 0; k < FS_MAX_NODES; k++) {
+            if (k != root) nodes[k].used = 0;
+        }
+        return 0;
+    }
 
-    fs_mkdir("/sys");
-    fs_mkdir("/home");
-    fs_mkdir("/tmp");
-
-    fs_write("/sys/version.txt", "NwOS 2.0.4\n", 0);
-    fs_write("/sys/kernel.bin",  "(kernel binary placeholder)\n", 0);
-
-    fs_write("/home/readme.txt",
-        "Welcome to NwOS 2.0!\n"
-        "\n"
-        "This is a RAM filesystem. Files are stored in memory\n"
-        "and lost on reboot.\n"
-        "\n"
-        "Try:\n"
-        "  dir                 - list current directory\n"
-        "  cd(\"sys\")           - go to /sys\n"
-        "  cd(\"..\")            - go back\n"
-        "  mkdir(\"stuff\")      - create directory\n"
-        "  touch(\"file.nw\")    - create empty file\n"
-        "  edit(\"file.nw\")     - open in editor\n"
-        "  cat(\"file.nw\")      - print contents\n"
-        "  pwd                 - current path\n", 0);
-
-    fs_write("/home/hello.nw",
-        "// hello.nw - NwC example\n"
-        "1A main() {\n"
-        "   print(\"Hello, world!\");\n"
-        "   return 0;\n"
-        "}\n", 0);
+    if (nodes[i].type == FS_DIR) {
+        for (int k = 0; k < FS_MAX_NODES; k++) {
+            if (nodes[k].used && nodes[k].parent == i) {
+                nodes[k].used = 0;
+            }
+        }
+    }
+    nodes[i].used = 0;
+    return 0;
 }

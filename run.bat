@@ -1,6 +1,11 @@
 @echo off
+if not exist disk.img (
+    qemu-img create -f raw disk.img 10M
+)
+
 qemu-system-i386 ^
   -drive format=raw,if=floppy,file=build\os.img ^
-  -m 128M -vga std ^
+  -drive format=raw,if=ide,file=disk.img,index=0,media=disk ^
+  -m 256M -vga std ^
   -no-reboot -no-shutdown ^
-  -serial stdio ^
+  -serial stdio

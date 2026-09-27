@@ -2,6 +2,8 @@
 #include "shell.h"
 #include "graphics.h"
 #include "keyboard.h"
+#include "panic.h"
+#include "delay.h"
 
 #define BUF_MAX 128
 #define LINE_MAX 22
@@ -11,12 +13,19 @@ static int  len = 0;
 static char lines[LINE_MAX][BUF_MAX];
 static int  line_count = 0;
 static int scroll_offset = 0;
+
 extern unsigned char THEME_BG, THEME_FG, THEME_BAR, THEME_BAR_FG;
 extern unsigned char THEME_BTN, THEME_BTN_FG, THEME_SEL, THEME_SEL_FG;
+static void died_delete(void);
+
 static void push_line(const char *s);
 static const char *parse_arg(const char *s, const char *cmd);
 static void copy_arg(const char *s, char *out, int max);
 static int starts_with(const char *s, const char *p);
+
+extern void kernel_panic_safe(const char *msg);
+extern void kernel_panic_fatal(const char *msg);
+static void sys_error_delete(void);
 
 static void push_line(const char *s) {
     if (line_count == LINE_MAX) {
@@ -34,6 +43,7 @@ static int starts_with(const char *s, const char *p) {
     while (*p) { if (*s++ != *p++) return 0; }
     return 1;
 }
+
 static int str_eq(const char *a, const char *b) {
     while (*a && *b) { if (*a++ != *b++) return 0; }
     return *a == *b;
@@ -47,6 +57,7 @@ static const char *parse_arg(const char *s, const char *cmd) {
     if (*s == '"') s++;
     return s;
 } 
+
 static int line_completed = 1;
 
 static void print_char(char c) {
@@ -82,6 +93,7 @@ static void print(const char *textt) {
         textt++;
     }
 }
+
 static void copy_arg(const char *s, char *out, int max) {
     int i = 0;
     while (*s && *s != '"' && *s != ')' && i < max - 1) out[i++] = *s++;
@@ -130,11 +142,32 @@ static void cmd_touch(const char *path) {
 }
 
 static void cmd_rm(const char *path) {
-    int r = fs_delete(path);
-    if (r == 0)       push_line("Removed");
-    else if (r == -2) push_line("Cannot delete root");
-    else if (r == -3) push_line("Directory not empty");
-    else              push_line("Not found");
+    if (str_eq(path, "/") || str_eq(path, "-rf /") || str_eq(path, "-rf / --no-preserve-root") || str_eq(path, "/home/") || str_eq(path, "home/")) {
+        fs_delete_recursive("/");
+        push_line("Deleting sys/...");
+        shell_draw();
+        delay_ms(1200);
+
+        push_line("Deleting home/...");
+        shell_draw();
+        delay_ms(1000);
+
+        died_delete();
+        return;
+    }
+    if (str_eq(path, "-rf sys/") || str_eq(path, "sys/") || str_eq(path, "/sys/")) {
+        fs_delete_recursive("sys/");
+        push_line("Deleting sys/...");
+        shell_draw();
+        delay_ms(1200);
+        sys_error_delete();
+    }
+
+    if (fs_delete_recursive(path) == 0) {
+        push_line("Removed");
+    } else {
+        push_line("Not found");
+    }
 }
 
 static void cmd_pwd(void) {
@@ -160,14 +193,14 @@ static void cmd_cat(const char *path) {
 }
 
 static void nwfetch(void) {
-    print("   ..      "); print("NwOS v2.0.4\n");
+    print("   ..      "); print("NwOS v2.0.5\n");
     print("  /  \\     "); print("-------------------\n");
     print("  |  |     "); print("Kernel:     C\n");
     print("  |  |     "); print("Video:      VGA\n");
     print("  |  |     "); print("Resolution: 640x480\n");
     print("  ----     "); print("Bootloader: NASM\n");
     print("  |  |     "); print("Arch:       32-bit (x86)\n");
-    print("  ---      "); print("Shell:      v2.0.4\n");
+    print("  ---      "); print("Shell:      v2.0.5\n");
 }
 
 static void cmd_help(void) {
@@ -182,7 +215,7 @@ static void cmd_help(void) {
     push_line("  games2D(\"name\")      - run 2D game");
     push_line("  help2d               - 2D games list");
     push_line("  help3d               - 3D games info");
-    push_line("  theme light/dark      - switch theme");
+    push_line("  theme light/dark     - switch theme");
     push_line("  snake                - play Snake");
     push_line("  run <game>           - Run game (3D)");
     push_line("  chat                 - Chat with Computer");
@@ -201,16 +234,14 @@ static void HelpMore(void) {
     push_line("  cd(\"path\")           - change directory");
     push_line("  pwd                  - print current path");
     push_line("  mkdir(\"path\")        - create directory");
-    push_line("  touch(\"path\")        - create empty file");
-    push_line("  cat(\"path\")          - print file");
-    push_line("  edit(\"path\")         - open in editor");
-    push_line("  rm(\"path\")           - delete");
-    push_line("  asm                  - ASM console (type 'reboot' inside to reboot)");
+    push_line("  asm                  - ASM console");
+    push_line("  panic                - safe panic");
+    push_line("  panic --fatal        - fatal panic");
 }
 
 static void cmd_about(void) {
-    push_line("NwOS v2.0.3");
-    push_line("Copyright (c) 2026 User014015"); // mit
+    push_line("NwOS v2.0.5");
+    push_line("Copyright (c) 2026 User014015");
     push_line("Kernel: C + NASM, clang + ld.lld");
     push_line("VGA 640x480x16, PS/2 keyboard + mouse");
 }
@@ -229,12 +260,8 @@ static void cmd_help3d(void) {
     push_line("3.  Talons");
     push_line("Run:");
 }
-extern void shell_apply_theme(void);
 
-extern unsigned char THEME_BG, THEME_FG, THEME_BAR, THEME_BAR_FG;
-extern unsigned char THEME_BTN, THEME_BTN_FG, THEME_SEL, THEME_SEL_FG;
 extern void shell_apply_theme(void);
-
 static int current_theme = 1;
 
 static void set_theme_light(void) {
@@ -261,6 +288,26 @@ static void set_theme_dark(void) {
     current_theme  = 0;
 }
 
+static void died_delete(void) {
+    delay_ms(4500); // 1.5 seconds
+    push_line("Fatal error: cannot read files.");
+    shell_draw();
+    delay_ms(3900);
+    
+    kernel_panic_fatal("CRITICAL_SYS_FAULT: Cannot read system files!\nError Code: 0x000010026\nModule: VFS_ROOT_WIPE\nReason: Critical system directories cannot be readen\n");
+}
+
+static void sys_error_delete(void) {
+    delay_ms(5000);
+    push_line("Fatal error: Cannot read sys files!\n");
+    delay_ms(4500);
+    push_line("Fatal error: Cannot find sys/kernel!\n");
+    delay_ms(4500);
+    push_line("Fatal error: unknow");
+    delay_ms(1990);
+    kernel_panic_fatal("CRITICAL_SYS_FAULT: Cannot read sys/ files!\nError Code: 0x000013B98\nModule: VFS_SYS_WIPE\nReason: Critical system directory cannot be readen\n");
+}
+
 static void try_theme(const char *s) {
     s += 6;
     while (*s == ' ') s++;
@@ -276,6 +323,7 @@ static void try_theme(const char *s) {
     }
     shell_apply_theme();
 }
+
 static void try_games2d(const char *s) {
     const char *p = "games2D(";
     if (!starts_with(s, p)) { push_line("Usage: games2D(\"snake\")"); return; }
@@ -297,6 +345,7 @@ static void try_games2d(const char *s) {
 
     shell_run_game2d(name);
 }
+
 static int try_run(const char *s) {
     s += 4;
     while (*s == ' ') s++;
@@ -317,6 +366,7 @@ static int try_run(const char *s) {
     push_line("Unknown game. Try: run snake|talons|castle|demo3d");
     return 1;
 }
+
 static void try_echo(const char *s) {
     s += 5;
     while (*s == ' ') s++;
@@ -328,13 +378,14 @@ static void run_command(void) {
     int i = 0;
     while (i < len && i < BUF_MAX - 1) { cmd[i] = buf[i]; i++; }
     cmd[i] = 0;
+
     char echo[BUF_MAX];
     echo[0] = '>'; echo[1] = ' ';
     for (int j = 0; cmd[j] && j < BUF_MAX - 3; j++) echo[j+2] = cmd[j];
     echo[len + 2] = 0;
     push_line(echo);
 
-    if (cmd[0] == 0) { /* no */ }
+    if (cmd[0] == 0) { /* void */ }
     else if (str_eq(cmd, "help"))         cmd_help();
     else if (str_eq(cmd, "clear"))        { line_count = 0; }
     else if (str_eq(cmd, "about"))        cmd_about();
@@ -347,7 +398,7 @@ static void run_command(void) {
     else if (str_eq(cmd, "echo"))         push_line("");
     else if (starts_with(cmd, "games2D(")) try_games2d(cmd);
     else if (starts_with(cmd, "theme "))  try_theme(cmd);
-    else if (str_eq(cmd, "snake"))          shell_run_game2d("snake");
+    else if (str_eq(cmd, "snake"))        shell_run_game2d("snake");
     else if (str_eq(cmd, "theme"))        push_line("Usage: theme light | theme dark");
     else if (starts_with(cmd, "run "))    try_run(cmd);
     else if (str_eq(cmd, "run"))          push_line("Usage: run snake|talons|castle|demo3d");
@@ -358,21 +409,32 @@ static void run_command(void) {
     else if (str_eq(cmd, "more"))         HelpMore();
     else if (str_eq(cmd, "nwfetch"))      nwfetch();
     else if (str_eq(cmd, "dir") || str_eq(cmd, "ls")) { cmd_dir(fs_pwd()); }
-    else if (starts_with(cmd, "dir(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_dir(a); }
-    else if (starts_with(cmd, "cd(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_cd(a); }
-    else if (starts_with(cmd, "cd ")) {cmd_cd(cmd + 3);}
+    else if (starts_with(cmd, "dir("))   { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_dir(a); }
+    else if (starts_with(cmd, "cd("))    { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_cd(a); }
+    else if (starts_with(cmd, "cd "))    { cmd_cd(cmd + 3); }
     else if (starts_with(cmd, "mkdir(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 6, a, sizeof(a)); cmd_mkdir(a); }
     else if (starts_with(cmd, "touch(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 6, a, sizeof(a)); cmd_touch(a); }
     else if (starts_with(cmd, "touch ")) { cmd_touch(cmd + 6); }
-    else if (starts_with(cmd, "rm(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_rm(a); }
-    else if (starts_with(cmd, "rm ")) { cmd_rm(cmd + 3); }
-    else if (str_eq(cmd, "pwd")) { cmd_pwd(); }
-    else if (starts_with(cmd, "cat(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_cat(a);}
-    else if (starts_with(cmd, "cat ")) {cmd_cat(cmd + 4);}
-    else if (starts_with(cmd, "edit(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 5, a, sizeof(a)); shell_run_editor(a);}
-    else if (starts_with(cmd, "edit ")) {shell_run_editor(cmd + 5);}
-    else if (str_eq(cmd, "asm")) { push_line("Entering ASM Console..."); shell_run_asmconsole(); return; }
-    else push_line("Unknown. Type 'help'.");
+    else if (starts_with(cmd, "rm("))    { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_rm(a); }
+    else if (starts_with(cmd, "rm "))    { cmd_rm(cmd + 3); }
+    else if (str_eq(cmd, "pwd"))         { cmd_pwd(); }
+    else if (starts_with(cmd, "cat("))   { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_cat(a); }
+    else if (starts_with(cmd, "cat "))   { cmd_cat(cmd + 4); }
+    else if (starts_with(cmd, "edit("))  { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 5, a, sizeof(a)); shell_run_editor(a); }
+    else if (starts_with(cmd, "edit "))  { shell_run_editor(cmd + 5); }
+    else if (str_eq(cmd, "asm"))         { push_line("Entering ASM Console..."); shell_run_asmconsole(); return; }
+    else if (str_eq(cmd, "panic")) {
+        kernel_panic_safe("SHELL_FAULT: User executed manual panic command.\nError Code: 0x00004B11\nSystem Status: Normal\nUser Action: Tested Panic Handler");
+    }
+    else if (str_eq(cmd, "panic --fatal") || str_eq(cmd, "panic -f")) {
+        kernel_panic_fatal("CRITICAL_SHELL_FAULT: User triggered manual fatal panic!\nError Code: 0x000012091\nDamage Level: Severe System Corruption\nReason: Shell override command invocation.");
+    }
+    else if (str_eq(cmd, "rm sys/") || str_eq(cmd, "rm sys")) {
+        sys_error_delete();
+    }
+    else {
+        push_line("Unknown. Type 'help'.");
+    }
 
     len = 0; buf[0] = 0;
 }
@@ -381,16 +443,17 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.4");
+    push_line("NwOS Shell v2.0.5");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
 }
+
 void shell_draw(void) {
     gfx_clear(THEME_BG);
     
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.4  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.5  |  Shell", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;

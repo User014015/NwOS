@@ -2,6 +2,7 @@
 [ORG 0x7C00]
 
 KERNEL_SEG equ 0x1000
+SECTORS_TO_READ equ 154
 
 start:
     cli
@@ -15,142 +16,41 @@ start:
     mov ax, KERNEL_SEG
     mov es, ax
     xor bx, bx
-    mov ah, 0x02
-    mov al, 17
-    mov ch, 0
-    mov cl, 2
+    
+    mov cx, 2
     mov dh, 0
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-    ; load sectors
-    mov ax, KERNEL_SEG
-    add ax, 0x0220
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 18
-    mov ch, 0
-    mov cl, 1
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
+    mov di, SECTORS_TO_READ
 
-    mov ax, KERNEL_SEG
-    add ax, 0x0460
-    mov es, ax
-    xor bx, bx
+load_loop:
+    push cx
+    push dx
+    
     mov ah, 0x02
-    mov al, 18
-    mov ch, 1
+    mov al, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc disk_error
+
+    mov ax, es
+    add ax, 0x20
+    mov es, ax
+
+    pop dx
+    pop cx
+
+    inc cl
+    cmp cl, 19
+    jne next_sector
     mov cl, 1
+    inc dh
+    cmp dh, 2
+    jne next_sector
     mov dh, 0
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
+    inc ch
 
-    mov ax, KERNEL_SEG
-    add ax, 0x06A0
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 18
-    mov ch, 1
-    mov cl, 1
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, KERNEL_SEG
-    add ax, 0x08E0
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 18
-    mov ch, 2
-    mov cl, 1
-    mov dh, 0
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, KERNEL_SEG
-    add ax, 0x0B20
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 18
-    mov ch, 2
-    mov cl, 1
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, KERNEL_SEG
-    add ax, 0x0D60
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 18
-    mov ch, 3
-    mov cl, 1
-    mov dh, 0
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, KERNEL_SEG
-    add ax, 0x0FA0
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 3
-    mov ch, 3
-    mov cl, 1
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, KERNEL_SEG
-    add ax, 0x1000
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 6
-    mov ch, 3
-    mov cl, 4
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, 0x20C0
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 2
-    mov ch, 3
-    mov cl, 10
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
-
-    mov ax, 0x20C0
-    mov es, ax
-    xor bx, bx
-    mov ah, 0x02
-    mov al, 18
-    mov ch, 3
-    mov cl, 10
-    mov dh, 1
-    mov dl, [boot_drive]
-    int 0x13
-    jc  disk_error
+next_sector:
+    dec di
+    jnz load_loop
 
     mov ax, 0x0012
     int 0x10

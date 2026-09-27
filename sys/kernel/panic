@@ -1,0 +1,16 @@
+how to call kernel panic:
+    FATAL:
+        type in shell 'rm /'
+        or: type in shell 'panic --fatal'
+    SAFE:
+        type in shell 'panic'
+
+it made for joke, these panics from shell didnt give damage
+
+error codes:
+    CRITICAL:
+        0x000010026     - Cannot read all files of NwOS 
+        0x000013B98     - Cannot read sys/ files
+        0x000012091     - Manual panic call 
+    SAFE:
+        0x00004B11      - Manual panic call 

@@ -66,8 +66,9 @@ asm_console_entry:
     call read_line
     cmp eax, 0xFFFFFFFF
     je  .do_exit
-    test eax, eax
-    jz  .repl
+    
+    cmp byte [buf], 0
+    je  .repl
 
     mov esi, buf
     mov edi, c_help
@@ -75,21 +76,25 @@ asm_console_entry:
     test al, al
     jnz .do_help
 
+    mov esi, buf
     mov edi, c_clear
     call str_eq
     test al, al
     jnz .do_clear
 
+    mov esi, buf
     mov edi, c_about
     call str_eq
     test al, al
     jnz .do_about
 
+    mov esi, buf
     mov edi, c_reboot
     call str_eq
     test al, al
     jnz .do_reboot
 
+    mov esi, buf
     mov edi, c_exit
     call str_eq
     test al, al
@@ -229,9 +234,15 @@ con_puts_nl:
     ret
 
 read_line:
-    pushad
+    push ebx
+    push ecx
+    push edx
+    push esi
+    push edi
+
     lea edi, [buf]
     xor ecx, ecx
+
 .loop:
     call keyboard_getchar
     test al, al
@@ -267,12 +278,21 @@ read_line:
     mov al, CH_ENTER
     call con_putchar
     call gfx_flip
-    mov [esp + 28], ecx
-    popad
+    
+    mov eax, ecx
+    pop edi
+    pop esi
+    pop edx
+    pop ecx
+    pop ebx
     ret
 
 .on_esc:
-    popad
+    pop edi
+    pop esi
+    pop edx
+    pop ecx
+    pop ebx
     mov eax, 0xFFFFFFFF
     ret
 

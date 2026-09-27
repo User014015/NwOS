@@ -23,6 +23,7 @@ int  fs_count(const char *path);
 const char *fs_name_at(const char *path, int idx);
 int  fs_type_at(const char *path, int idx);
 int  fs_size_at(const char *path, int idx);
+int fs_delete_recursive(const char *path);
 
 int  fs_cd(const char *path);
 const char *fs_pwd(void);
