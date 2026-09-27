@@ -17,34 +17,47 @@ static int str_eq(const char *a, const char *b) {
     while (*a && *b) { if (*a++ != *b++) return 0; }
     return *a == *b;
 }
+
 static void str_copy_n(char *dst, const char *src, int max) {
     int i = 0;
     while (src[i] && i < max - 1) { dst[i] = src[i]; i++; }
     dst[i] = 0;
 }
-static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
+
+static int str_len(const char *s) { 
+    int n = 0; 
+    while (s[n]) n++; 
+    return n; 
+}
 
 static int alloc_node(void) {
-    for (int i = 0; i < FS_MAX_NODES; i++)
+    for (int i = 0; i < FS_MAX_NODES; i++) {
         if (!nodes[i].used) return i;
+    }
     return -1;
 }
 
 static int find_child(int parent, const char *name) {
-    for (int i = 0; i < FS_MAX_NODES; i++)
-        if (nodes[i].used && nodes[i].parent == parent &&
-            str_eq(nodes[i].name, name)) return i;
+    for (int i = 0; i < FS_MAX_NODES; i++) {
+        if (nodes[i].used && nodes[i].parent == parent && str_eq(nodes[i].name, name)) {
+            return i;
+        }
+    }
     return -1;
 }
 
 static int walk(const char *path) {
-    if (!path || !*path) return -1;
+    if (!path || !*path) return current_dir;
 
     int cur;
     const char *p = path;
 
-    if (*p == '/') { cur = root; p++; }
-    else            cur = current_dir;
+    if (*p == '/') { 
+        cur = root; 
+        p++; 
+    } else {
+        cur = current_dir;
+    }
 
     while (*p) {
         while (*p == '/') p++;
@@ -63,7 +76,9 @@ static int walk(const char *path) {
             if (nodes[cur].parent >= 0) cur = nodes[cur].parent;
             continue;
         }
+
         if (nodes[cur].type != FS_DIR) return -1;
+
         int child = find_child(cur, name);
         if (child < 0) return -1;
         cur = child;
@@ -77,8 +92,12 @@ static int walk_create(const char *path, int final_type) {
     int cur;
     const char *p = path;
 
-    if (*p == '/') { cur = root; p++; }
-    else            cur = current_dir;
+    if (*p == '/') { 
+        cur = root; 
+        p++; 
+    } else {
+        cur = current_dir;
+    }
 
     while (*p) {
         while (*p == '/') p++;
@@ -97,13 +116,20 @@ static int walk_create(const char *path, int final_type) {
             if (nodes[cur].parent >= 0) cur = nodes[cur].parent;
             continue;
         }
+
         if (nodes[cur].type != FS_DIR) return -1;
 
         int child = find_child(cur, name);
+        
+        const char *next = p;
+        while (*next == '/') next++;
+        int is_last = (*next == 0);
+
         if (child < 0) {
-            int type = (*p == 0) ? final_type : FS_DIR;
+            int type = is_last ? final_type : FS_DIR;
             int idx = alloc_node();
             if (idx < 0) return -1;
+
             str_copy_n(nodes[idx].name, name, FS_NAME_LEN);
             nodes[idx].type   = type;
             nodes[idx].parent = cur;
@@ -111,31 +137,36 @@ static int walk_create(const char *path, int final_type) {
             nodes[idx].size   = 0;
             child = idx;
         } else {
-            if (*p != 0 && nodes[child].type != FS_DIR) return -1;
+            if (!is_last && nodes[child].type != FS_DIR) return -1;
         }
         cur = child;
     }
     return cur;
 }
 
-int fs_exists(const char *path) { return walk(path) >= 0; }
+int fs_exists(const char *path) { 
+    return walk(path) >= 0; 
+}
 
 int fs_is_dir(const char *path) {
     int i = walk(path);
-    return i >= 0 && nodes[i].type == FS_DIR;
+    return (i >= 0 && nodes[i].type == FS_DIR);
 }
 
 int fs_read(const char *path, char *out, int max) {
     int i = walk(path);
     if (i < 0 || nodes[i].type != FS_FILE) return -1;
+    
     int n = nodes[i].size;
     if (n > max - 1) n = max - 1;
+    
     for (int j = 0; j < n; j++) out[j] = nodes[i].data[j];
     out[n] = 0;
     return n;
 }
 
 int fs_write(const char *path, const char *data, int size) {
+    if (!data) return -1;
     if (size == 0) size = str_len(data);
     if (size > FS_MAX_SIZE) size = FS_MAX_SIZE;
 
@@ -165,8 +196,9 @@ int fs_delete(const char *path) {
     if (i == root) return -2;
 
     if (nodes[i].type == FS_DIR) {
-        for (int k = 0; k < FS_MAX_NODES; k++)
+        for (int k = 0; k < FS_MAX_NODES; k++) {
             if (nodes[k].used && nodes[k].parent == i) return -3;
+        }
     }
     nodes[i].used = 0;
     return 0;
@@ -175,9 +207,11 @@ int fs_delete(const char *path) {
 int fs_count(const char *path) {
     int i = walk(path);
     if (i < 0 || nodes[i].type != FS_DIR) return -1;
+    
     int n = 0;
-    for (int k = 0; k < FS_MAX_NODES; k++)
+    for (int k = 0; k < FS_MAX_NODES; k++) {
         if (nodes[k].used && nodes[k].parent == i) n++;
+    }
     return n;
 }
 
@@ -221,19 +255,30 @@ int fs_cd(const char *path) {
 }
 
 static void build_path(int idx, char *out, int max) {
-    if (idx == root) { str_copy_n(out, "/", max); return; }
+    if (idx == root) { 
+        str_copy_n(out, "/", max); 
+        return; 
+    }
 
     char parent[128];
     build_path(nodes[idx].parent, parent, sizeof(parent));
     int plen = str_len(parent);
 
     if (plen > 0 && parent[plen - 1] != '/') {
-        if (plen < (int)sizeof(parent) - 1) { parent[plen++] = '/'; parent[plen] = 0; }
+        if (plen < (int)sizeof(parent) - 1) { 
+            parent[plen++] = '/'; 
+            parent[plen] = 0; 
+        }
     }
     int olen = 0;
-    while (parent[olen] && olen < max - 1) { out[olen] = parent[olen]; olen++; }
+    while (parent[olen] && olen < max - 1) { 
+        out[olen] = parent[olen]; 
+        olen++; 
+    }
     int k = 0;
-    while (nodes[idx].name[k] && olen < max - 1) out[olen++] = nodes[idx].name[k++];
+    while (nodes[idx].name[k] && olen < max - 1) {
+        out[olen++] = nodes[idx].name[k++];
+    }
     out[olen] = 0;
 }
 
@@ -258,31 +303,29 @@ void fs_init(void) {
     fs_mkdir("/home");
     fs_mkdir("/tmp");
 
-    fs_write("/sys/version.txt", "NwOS 2.0.1\n", 0);
+    fs_write("/sys/version.txt", "NwOS 2.0.4\n", 0);
     fs_write("/sys/kernel.bin",  "(kernel binary placeholder)\n", 0);
 
     fs_write("/home/readme.txt",
         "Welcome to NwOS 2.0!\n"
         "\n"
         "This is a RAM filesystem. Files are stored in memory\n"
-        "and lost on reboot. On-disk FS is coming later.\n"
+        "and lost on reboot.\n"
         "\n"
         "Try:\n"
-        "  dir                - list current directory\n"
-        "  cd(\"sys\")          - go to /sys\n"
-        "  mkdir(\"stuff\")     - create directory\n"
-        "  touch(\"file.nw\")   - create empty file\n"
-        "  edit(\"file.nw\")    - open in editor\n"
-        "  cat(\"file.nw\")     - print contents\n"
-        "  pwd                - current path\n"
-        "\n"
-        "File extensions for NwC:\n"
-        "  .nw   - NwC source\n"
-        "  .nwo  - compiled binary\n"
-        "  .lnw  - low-level NwC\n"
-        "\n", 0);
+        "  dir                 - list current directory\n"
+        "  cd(\"sys\")           - go to /sys\n"
+        "  cd(\"..\")            - go back\n"
+        "  mkdir(\"stuff\")      - create directory\n"
+        "  touch(\"file.nw\")    - create empty file\n"
+        "  edit(\"file.nw\")     - open in editor\n"
+        "  cat(\"file.nw\")      - print contents\n"
+        "  pwd                 - current path\n", 0);
 
     fs_write("/home/hello.nw",
         "// hello.nw - NwC example\n"
-        "print(\"Hello, world!\");\n", 0);
+        "1A main() {\n"
+        "   print(\"Hello, world!\");\n"
+        "   return 0;\n"
+        "}\n", 0);
 }

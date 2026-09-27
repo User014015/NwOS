@@ -12,6 +12,7 @@
 #include "chat.h"
 #include "fs.h"
 #include "editor.h"
+#include "../asm_console/asm_console.h"
 
 static void redraw(void);
 static void draw_topbar(void);
@@ -112,6 +113,11 @@ void shell_run_editor(const char *name) {
     current = SCR_EDITOR;
     extern int editor_want_quit_debug(void);
     g_last_want = editor_want_quit_debug();
+}
+void shell_run_asmconsole(void) {
+    asm_console_entry();
+    current = SCR_SHELL;
+    redraw();
 }
 static const unsigned char cursor_shape[18][11] = {
     {0,0,0,0,0,0,0,0,0,0,0},
@@ -350,20 +356,20 @@ static int u2s(unsigned int v, char *out) {
 static void draw_topbar(void) {
     gfx_rect(0, 0, 640, 32, THEME_BAR);
 
-    const char *title = "NwOS 2.0.3";
+    const char *title = "NwOS 2.0.4";
     switch (current) {
-        case SCR_WELCOME: title = "NwOS 2.0.3  |  Welcome";       break;
-        case SCR_MENU:    title = "NwOS 2.0.3  |  Personal Menu"; break;
-        case SCR_SHELL:   title = "NwOS 2.0.3  |  Shell";         break;
-        case SCR_CALC:    title = "NwOS 2.0.3  |  Calculator";    break;
-        case SCR_GAME:    title = "NwOS 2.0.3  |  Game";          break;
-        case SCR_GAMES:   title = "NwOS 2.0.3  |  Games";         break;
-        case SCR_SNAKE:   title = "NwOS 2.0.3  |  Snake";         break;
-        case SCR_DEMO3D:  title = "NwOS 2.0.3  |  3D Demo";       break;
-        case SCR_RAYCAST: title = "NwOS 2.0.3  |  Castle NwOS";   break;
-        case SCR_TALONS:  title = "NwOS 2.0.3  |  Talons";        break;
-        case SCR_CHAT:    title = "NwOS 2.0.3  |  Chat";          break;
-        case SCR_EDITOR:  title = "NwOS 2.0.3  |  Editor";        break;
+        case SCR_WELCOME: title = "NwOS 2.0.4  |  Welcome";       break;
+        case SCR_MENU:    title = "NwOS 2.0.4  |  Personal Menu"; break;
+        case SCR_SHELL:   title = "NwOS 2.0.4  |  Shell";         break;
+        case SCR_CALC:    title = "NwOS 2.0.4  |  Calculator";    break;
+        case SCR_GAME:    title = "NwOS 2.0.4  |  Game";          break;
+        case SCR_GAMES:   title = "NwOS 2.0.4  |  Games";         break;
+        case SCR_SNAKE:   title = "NwOS 2.0.4  |  Snake";         break;
+        case SCR_DEMO3D:  title = "NwOS 2.0.4  |  3D Demo";       break;
+        case SCR_RAYCAST: title = "NwOS 2.0.4  |  Castle NwOS";   break;
+        case SCR_TALONS:  title = "NwOS 2.0.4  |  Talons";        break;
+        case SCR_CHAT:    title = "NwOS 2.0.4  |  Chat";          break;
+        case SCR_EDITOR:  title = "NwOS 2.0.4  |  Editor";        break;
     }
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char buf[64];

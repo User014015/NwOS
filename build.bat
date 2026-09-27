@@ -25,19 +25,21 @@ if errorlevel 1 (
     echo        Trying anyway...
 )
 
-echo [1/6] Assembling boot sector...
+echo [1/7] Assembling boot sector...
 nasm -f bin sys\boot\boot.asm -o build\boot.bin
 if errorlevel 1 goto :error
 
-echo [2/6] Assembling kernel entry + IDT stub...
+echo [2/7] Assembling kernel entry + IDT stub...
 nasm -f elf32 sys\kernel\kernel_entry.asm -o build\kernel_entry.o
 if errorlevel 1 goto :error
 if exist sys\kernel\idt.asm (
     nasm -f elf32 sys\kernel\idt.asm -o build\idt.o
     if errorlevel 1 goto :error
 )
+nasm -f elf32 sys\asm_console\asm_console.asm -o build\asm_console.o
+if errorlevel 1 goto :error
 
-echo [3/6] Compiling C sources...
+echo [3/7] Compiling C sources...
 clang %CFLAGS% -c sys\kernel\kernel.c   -o build\kernel.o
 if errorlevel 1 goto :error
 clang %CFLAGS% -c sys\kernel\graphics.c -o build\graphics.o
@@ -68,15 +70,15 @@ for %%F in (build\kernel.o) do (
     findstr /M /C:"ELF" "%%F" >nul 2>nul
 )
 
-echo [4/6] Linking with ld.lld (ELF32)...
-set OBJS=build\kernel_entry.o build\kernel.o build\graphics.o build\keyboard.o build\mouse.o build\shell.o build\timer.o build\metrics.o build/snake.o build/demo3d.o build/raycast.o build/talons.o build/chat.o build/fs.o build/editor.o
+echo [4/7] Linking with ld.lld (ELF32)...
+set OBJS=build\kernel_entry.o build/asm_console.o build\kernel.o build\graphics.o build\keyboard.o build\mouse.o build\shell.o build\timer.o build\metrics.o build/snake.o build/demo3d.o build/raycast.o build/talons.o build/chat.o build/fs.o build/editor.o
 if exist build\idt.o   set OBJS=!OBJS! build\idt.o
 if exist build\idt_c.o set OBJS=!OBJS! build\idt_c.o
 
 ld.lld -m elf_i386 -T linker.ld -nostdlib -o build\kernel.elf !OBJS!
 if errorlevel 1 goto :error
 
-echo [5/6] Extracting flat binary...
+echo [5/7] Extracting flat binary...
 llvm-objcopy -O binary build\kernel.elf build\kernel.bin 2>nul
 if errorlevel 1 (
     objcopy -O binary build\kernel.elf build\kernel.bin
@@ -86,13 +88,31 @@ if errorlevel 1 (
 for %%F in (build\kernel.bin) do set KBSIZE=%%~zF
 echo      kernel.bin size: %KBSIZE% bytes
 
-echo [6/6] Creating bootable image...
+echo [6/7] Creating bootable image...
 fsutil file createnew build\os.img 1474560 >nul 2>nul
 
 dd if=build\boot.bin of=build\os.img bs=512 count=1 conv=notrunc 2>nul
 
 dd if=build\kernel.bin of=build\os.img bs=512 seek=1 conv=notrunc 2>nul
 if errorlevel 1 goto :error
+
+echo [7/7] Creating bootable ISO...
+
+if not exist build\iso mkdir build\iso
+
+copy /y build\os.img build\iso\os.img >nul
+if errorlevel 1 goto :error
+
+xorrisofs ^
+  -o build\NwOS.iso ^
+  -b os.img ^
+  -c boot.cat ^
+  build\iso
+
+if errorlevel 1 goto :error
+
+echo.
+echo ISO created: build\NwOS.iso
 
 echo.
 echo === Build complete ===

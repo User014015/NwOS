@@ -46,6 +46,41 @@ static const char *parse_arg(const char *s, const char *cmd) {
     if (*s == '(') s++;
     if (*s == '"') s++;
     return s;
+} 
+static int line_completed = 1;
+
+static void print_char(char c) {
+    if (c == '\n') {
+        line_completed = 1;
+        return;
+    }
+
+    if (line_completed || line_count == 0) {
+        push_line("");
+        line_completed = 0;
+    }
+
+    int current_idx = line_count - 1;
+    int cur_len = 0;
+    while (lines[current_idx][cur_len]) {
+        cur_len++;
+    }
+
+    if (cur_len >= BUF_MAX - 1) {
+        push_line("");
+        current_idx = line_count - 1;
+        cur_len = 0;
+    }
+
+    lines[current_idx][cur_len] = c;
+    lines[current_idx][cur_len + 1] = 0;
+}
+
+static void print(const char *textt) {
+    while (*textt) {
+        print_char(*textt);
+        textt++;
+    }
 }
 static void copy_arg(const char *s, char *out, int max) {
     int i = 0;
@@ -124,6 +159,17 @@ static void cmd_cat(const char *path) {
     }
 }
 
+static void nwfetch(void) {
+    print("   ..      "); print("NwOS v2.0.4\n");
+    print("  /  \\     "); print("-------------------\n");
+    print("  |  |     "); print("Kernel:     C\n");
+    print("  |  |     "); print("Video:      VGA\n");
+    print("  |  |     "); print("Resolution: 640x480\n");
+    print("  ----     "); print("Bootloader: NASM\n");
+    print("  |  |     "); print("Arch:       32-bit (x86)\n");
+    print("  ---      "); print("Shell:      v2.0.4\n");
+}
+
 static void cmd_help(void) {
     push_line("Commands:");
     push_line("  help                 - this help");
@@ -140,6 +186,7 @@ static void cmd_help(void) {
     push_line("  snake                - play Snake");
     push_line("  run <game>           - Run game (3D)");
     push_line("  chat                 - Chat with Computer");
+    push_line("  nwfetch              - Neofetch");
     push_line("  more                 - More commands");
 }
 
@@ -158,6 +205,7 @@ static void HelpMore(void) {
     push_line("  cat(\"path\")          - print file");
     push_line("  edit(\"path\")         - open in editor");
     push_line("  rm(\"path\")           - delete");
+    push_line("  asm                  - ASM console (type 'reboot' inside to reboot)");
 }
 
 static void cmd_about(void) {
@@ -308,6 +356,7 @@ static void run_command(void) {
     else if (str_eq(cmd, "demo3d"))       { push_line("Running: demo3d");  shell_run_game("demo3d"); }
     else if (str_eq(cmd, "chat"))         shell_run_chat();
     else if (str_eq(cmd, "more"))         HelpMore();
+    else if (str_eq(cmd, "nwfetch"))      nwfetch();
     else if (str_eq(cmd, "dir") || str_eq(cmd, "ls")) { cmd_dir(fs_pwd()); }
     else if (starts_with(cmd, "dir(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_dir(a); }
     else if (starts_with(cmd, "cd(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_cd(a); }
@@ -322,6 +371,7 @@ static void run_command(void) {
     else if (starts_with(cmd, "cat ")) {cmd_cat(cmd + 4);}
     else if (starts_with(cmd, "edit(")) {char a[FS_NAME_LEN * 4]; copy_arg(cmd + 5, a, sizeof(a)); shell_run_editor(a);}
     else if (starts_with(cmd, "edit ")) {shell_run_editor(cmd + 5);}
+    else if (str_eq(cmd, "asm")) { push_line("Entering ASM Console..."); shell_run_asmconsole(); return; }
     else push_line("Unknown. Type 'help'.");
 
     len = 0; buf[0] = 0;
@@ -331,16 +381,16 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.3");
+    push_line("NwOS Shell v2.0.4");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
 }
-
 void shell_draw(void) {
     gfx_clear(THEME_BG);
+    
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.3  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.4  |  Shell", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;
@@ -348,12 +398,16 @@ void shell_draw(void) {
     if (start < 0) start = 0;
 
     int y = 40;
+    int printed_lines = 0;
     for (int i = start; i < end && i < line_count; i++) {
         gfx_puts(8, y, lines[i], THEME_FG, THEME_BG);
         y += 16;
+        printed_lines++;
     }
 
-    int cy = 40 + (LINE_MAX - 3) * 16;
+    int cy = 40 + printed_lines * 16;
+    if (cy > 424) cy = 424; 
+
     gfx_puts(8, cy, ">", LIGHT_GREEN, THEME_BG);
     gfx_puts(24, cy, buf, THEME_FG, THEME_BG);
     gfx_rect(24 + len * 8, cy, 6, 18, LIGHT_GRAY);

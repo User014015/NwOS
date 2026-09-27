@@ -140,6 +140,18 @@ start:
     int 0x13
     jc  disk_error
 
+    mov ax, 0x20C0
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x02
+    mov al, 18
+    mov ch, 3
+    mov cl, 10
+    mov dh, 1
+    mov dl, [boot_drive]
+    int 0x13
+    jc  disk_error
+
     mov ax, 0x0012
     int 0x10
 

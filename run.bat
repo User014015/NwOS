@@ -4,4 +4,3 @@ qemu-system-i386 ^
   -m 128M -vga std ^
   -no-reboot -no-shutdown ^
   -serial stdio ^
-  -d int,cpu_reset -D qemu.log
