@@ -97,7 +97,7 @@ void fs_init(void) {
         const char *hostname = "NwOS-PC\nNAME:ROOT\n";
         fs_write("/etc/hostname", hostname, str_len(hostname));
 
-        const char *os_rel = "NAME=\"NwOS\"\nVERSION=\"1.0\"\nID=nwos\n";
+        const char *os_rel = "NAME=\"NwOS\"\nVERSION=\"2.0.6\"\nID=nwos\n";
         fs_write("/etc/os-release", os_rel, str_len(os_rel));
 
         const char *read_info = "Welcome to NwOS!\nUser environment initialized.\n";

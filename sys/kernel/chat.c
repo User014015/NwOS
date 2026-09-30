@@ -20,8 +20,9 @@ static unsigned int rnd(void) {
 
 static void push_line(const char *s) {
     if (line_count == LINE_MAX) {
-        for (int i = 1; i < LINE_MAX; i++)
+        for (int i = 1; i < LINE_MAX; i++) {
             for (int j = 0; j < BUF_MAX; j++) lines[i-1][j] = lines[i][j];
+        }
         line_count--;
     }
     int i = 0;
@@ -29,76 +30,61 @@ static void push_line(const char *s) {
     lines[line_count][i] = 0;
     line_count++;
 }
-static const char *tech_subj[] = {"the compiler","a kernel","the CPU","a pointer","the driver","this OS"};
-static const char *tech_verb[] = {"compiled","crashed","loaded","parsed","mapped","interrupted"};
-static const char *tech_obj[]  = {"the buffer","a new module","the video memory","a device","the stack","the shell"};
 
-static const char *nat_subj[]  = {"the wind","a river","the mountain","an eagle","the sun","a tree"};
-static const char *nat_verb[]  = {"whispers to","flies over","touches","warms","shakes","kisses"};
-static const char *nat_obj[]   = {"the valley","a lake","the clouds","the forest","a stone","the sky"};
+#define ARR_SIZE(x) (int)(sizeof(x)/sizeof(x[0]))
 
-static const char *food_subj[] = {"the chef","a soup","the pizza","a cook","the baker","an apple"};
-static const char *food_verb[] = {"tastes","smells","cooks","burns","loves","cools"};
-static const char *food_obj[]  = {"of garlic","like home","the oven","in the pan","the sauce","with cheese"};
+static const char *randwords[] = {
+    "Hello", "Bye", "When", "Are", "You",
+    "We", "His", "a", "world", "Earth",
+    "human", "mars", "hair", "dog",
+    "cat", "animal", "cosmic", "computer",
+    "god", "today", "void", "function",
+    "words", "car", "OS", "humanoid",
+    "people", "bad", "virus", "invasion",
+    "good", "yes", "i am", "am", "an",
+    "china", "random", "were", "country",
+    "name", "names", "knife", "cool",
+    "cold", "main", "trojan"
+};
 
-static const char *spc_subj[]  = {"a star","the comet","a galaxy","the moon","an asteroid","a nebula"};
-static const char *spc_verb[]  = {"shines on","orbits","collides with","illuminates","passes","drifts past"};
-static const char *spc_obj[]   = {"the void","a black hole","the planet","the nebula","a sun","the cosmos"};
+static void gen_reply(void) {
+    int s_idx = rnd() % ARR_SIZE(randwords);
+    int s_idx2 = rnd() % ARR_SIZE(randwords);
+    int s_idx3 = rnd() % ARR_SIZE(randwords);
+    int s_idx4 = rnd() % ARR_SIZE(randwords);
+    int s_idx5 = rnd() % ARR_SIZE(randwords);
+    int s_idx6 = rnd() % ARR_SIZE(randwords);
 
-#define NW(x) (int)(sizeof(x)/sizeof(x[0]))
-
-static int str_has(const char *s, const char *sub) {
-    for (; *s; s++) {
-        const char *a = s, *b = sub;
-        while (*a && *b && *a == *b) { a++; b++; }
-        if (!*b) return 1;
-    }
-    return 0;
-}
-
-static int pick_theme(const char *msg) {
-    if (str_has(msg,"cod")||str_has(msg,"prog")||str_has(msg,"kern")||
-        str_has(msg,"comp")||str_has(msg,"nw")||str_has(msg,"os")||str_has(msg,"bug"))
-        return 0;
-    if (str_has(msg,"tre")||str_has(msg,"for")||str_has(msg,"riv")||str_has(msg,"natur")||
-        str_has(msg,"sky")||str_has(msg,"bird")||str_has(msg,"sun")||str_has(msg,"lake"))
-        return 1;
-    if (str_has(msg,"foo")||str_has(msg,"pizz")||str_has(msg,"eat")||str_has(msg,"cook")||
-        str_has(msg,"tast")||str_has(msg,"hung"))
-        return 2;
-    if (str_has(msg,"spac")||str_has(msg,"star")||str_has(msg,"plane")||str_has(msg,"moon")||
-        str_has(msg,"gal"))
-        return 3;
-    return rnd() % 4;
-}
-
-static void gen_reply(const char *msg) {
-    int t = pick_theme(msg);
-    const char **S, **V, **O;
-    int ns, nv, no;
-    if      (t == 0) { S=tech_subj; V=tech_verb; O=tech_obj;  ns=NW(tech_subj); nv=NW(tech_verb); no=NW(tech_obj);  }
-    else if (t == 1) { S=nat_subj;  V=nat_verb;  O=nat_obj;   ns=NW(nat_subj);  nv=NW(nat_verb);  no=NW(nat_obj);   }
-    else if (t == 2) { S=food_subj; V=food_verb; O=food_obj;  ns=NW(food_subj); nv=NW(food_verb); no=NW(food_obj);  }
-    else             { S=spc_subj;  V=spc_verb;  O=spc_obj;   ns=NW(spc_subj);  nv=NW(spc_verb);  no=NW(spc_obj);   }
+    const char *w1 = randwords[s_idx];
+    const char *w2 = randwords[s_idx2];
+    const char *w3 = randwords[s_idx3];
+    const char *w4 = randwords[s_idx4];
+    const char *w5 = randwords[s_idx5];
+    const char *w6 = randwords[s_idx6];
 
     char reply[BUF_MAX];
-    int k = 0;
-    const char *parts[3];
-    parts[0] = S[rnd() % ns];
-    parts[1] = V[rnd() % nv];
-    parts[2] = O[rnd() % no];
-    for (int p = 0; p < 3; p++) {
-        const char *w = parts[p];
-        while (*w && k < BUF_MAX-2) reply[k++] = *w++;
-        if (p < 2) reply[k++] = ' ';
-    }
-    reply[k] = 0;
+    int pos = 0;
+
+    while (*w1 && pos < BUF_MAX - 10) reply[pos++] = *w1++;
+    reply[pos++] = ' ';
+    while (*w2 && pos < BUF_MAX - 2) reply[pos++] = *w2++;
+    reply[pos++] = ' ';
+    while (*w3 && pos < BUF_MAX - 2) reply[pos++] = *w3++;
+    reply[pos++] = ' ';
+    while (*w4 && pos < BUF_MAX - 2) reply[pos++] = *w4++;
+    reply[pos]=0;
+    while (*w5 && pos < BUF_MAX - 2) reply[pos++] = *w5++;
+    reply[pos]=0;
+    while (*w5 && pos < BUF_MAX - 2) reply[pos++]=*w5++;
+    reply[pos]=0;
+
     char full[BUF_MAX];
     int f = 0;
-    const char *pre = "< ";
-    while (*pre) full[f++] = *pre++;
-    for (int i = 0; reply[i] && f < BUF_MAX-1; i++) full[f++] = reply[i];
+    const char *tag = "< ";
+    while (*tag) full[f++] = *tag++;
+    for (int i = 0; reply[i] && f < BUF_MAX - 1; i++) full[f++] = reply[i];
     full[f] = 0;
+
     push_line(full);
 }
 
@@ -109,28 +95,31 @@ void chat_init(void) {
     rng = ((unsigned int)timer_read() << 8) | 0xDEAD;
     if (rng == 0) rng = 1;
 
-    push_line("NwOS Chat v1.0");
+    push_line("=== NwOS Chat ===");
     push_line("Type anything");
     push_line("");
 }
 
 void chat_handle_key(unsigned char c) {
     unsigned char u = (unsigned char)c;
+
     if (u == KEY_ENTER) {
         if (len > 0) {
             char echo[BUF_MAX + 4];
             echo[0] = '>'; echo[1] = ' ';
             for (int i = 0; i < len; i++) echo[i+2] = buf[i];
             echo[len+2] = 0;
+            
             push_line(echo);
-            gen_reply(buf);
+            gen_reply();
+            
             len = 0;
             buf[0] = 0;
             scroll_offset = 0;
         }
     } else if (u == KEY_BACKSPACE) {
         if (len > 0) buf[--len] = 0;
-    } else if (u >= 0x20 && u < 0x7F && len < BUF_MAX-1) {
+    } else if (u >= 0x20 && u < 0x7F && len < BUF_MAX - 1) {
         buf[len++] = c;
         buf[len] = 0;
     }
@@ -146,8 +135,9 @@ void chat_scroll(int delta) {
 
 void chat_draw(void) {
     gfx_clear(THEME_BG);
+    
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.3  |  Chat", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS  |  Chat", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;
@@ -157,22 +147,22 @@ void chat_draw(void) {
     int y = 40;
     for (int i = start; i < end && i < line_count; i++) {
         unsigned char fg = THEME_FG;
-        if      (lines[i][0] == '>') fg = LIGHT_GREEN;
-        else if (lines[i][0] == '<') fg = BLACK;
+        if      (lines[i][0] == '>') fg = BLUE;
+        else if (lines[i][0] == '<') fg = LIGHT_GREEN;
         gfx_puts(8, y, lines[i], fg, THEME_BG);
         y += 16;
     }
 
     if (scroll_offset > 0) {
-        gfx_puts(600, 40, "[SCROLL]", RED, THEME_BG);
+        gfx_puts(550, 40, "[SCROLL]", RED, THEME_BG);
     }
 
     int cy = 440;
-    gfx_puts(8, cy, "You:", LIGHT_GREEN, THEME_BG);
+    gfx_puts(8, cy, "You:", BLUE, THEME_BG);
     gfx_puts(56, cy, buf, THEME_FG, THEME_BG);
     gfx_rect(56 + len * 8, cy, 6, 16, LIGHT_GRAY);
 
     gfx_rect(0, 456, 640, 24, THEME_BAR);
-    gfx_puts(8, 460, "TYPE message | ENTER = send | MOUSE WHEEL = scroll | ESC = back",
+    gfx_puts(8, 460, "ENTER = send | MOUSE WHEEL = scroll",
              THEME_BAR_FG, THEME_BAR);
 }

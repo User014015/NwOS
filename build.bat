@@ -36,6 +36,7 @@ if exist sys\kernel\idt.asm (
     nasm -f elf32 sys\kernel\idt.asm -o build\idt.o
     if errorlevel 1 goto :error
 )
+echo Compiling asm console..
 nasm -f elf32 sys\asm_console\asm_console.asm -o build\asm_console.o
 if errorlevel 1 goto :error
 
@@ -49,25 +50,43 @@ if errorlevel 1 goto :error
 echo [3/7] Compiling C sources...
 clang %CFLAGS% -c sys\kernel\kernel.c   -o build\kernel.o
 if errorlevel 1 goto :error
+echo compiling graphics...
 clang %CFLAGS% -c sys\kernel\graphics.c -o build\graphics.o
 if errorlevel 1 goto :error
+echo compiling keyboard...
 clang %CFLAGS% -c sys\kernel\keyboard.c -o build\keyboard.o
 if errorlevel 1 goto :error
+echo compiling mouse...
 clang %CFLAGS% -c sys\kernel\mouse.c    -o build\mouse.o
 if errorlevel 1 goto :error
+echo compiling shell..
 clang %CFLAGS% -c sys\kernel\shell.c    -o build\shell.o
+echo compiling timer..
 clang %CFLAGS% -c sys\kernel\timer.c   -o build\timer.o
+echo compiling metrics..
 clang %CFLAGS% -c sys\kernel\metrics.c -o build\metrics.o
+echo compiling snake...
 clang %CFLAGS% -c sys\kernel\snake.c -o build\snake.o
+echo compiling demo3d
 clang %CFLAGS% -c sys\kernel\demo3d.c  -o build\demo3d.o
+echo compiling raycast...
 clang %CFLAGS% -c sys\kernel\raycast.c -o build\raycast.o
+echo compiling talons..
 clang %CFLAGS% -c sys\kernel\talons.c -o build\talons.o
+echo compiling chat...
 clang %CFLAGS% -c sys\kernel\chat.c -o build\chat.o
+echo compiling filesystem...
 clang %CFLAGS% -c sys\kernel\fs.c     -o build\fs.o
+echo compiling editor..
 clang %CFLAGS% -c sys\kernel\editor.c -o build\editor.o
+echo compiling k panic..
 clang %CFLAGS% -c sys\kernel\panic.c -o build\panic.o
+echo compiling delay..
 clang %CFLAGS% -c sys\kernel\delay.c -o build\delay.o
+echo compiling ata.o..
 clang %CFLAGS% -c sys\kernel\ata.c -o build\ata.o
+echo compiling timer..
+clang %CFLAGS% -c sys\kernel\time.c -o build\time.o
 if errorlevel 1 goto :error
 if errorlevel 1 goto :error
 if exist sys\kernel\idt.c (
@@ -81,7 +100,7 @@ for %%F in (build\kernel.o) do (
 )
 
 echo [4/7] Linking with ld.lld (ELF32)...
-set OBJS=build\kernel_entry.o build/asm_console.o build\kernel.o build\graphics.o build\keyboard.o build\mouse.o build\shell.o build\timer.o build\metrics.o build/snake.o build/demo3d.o build/raycast.o build/talons.o build/chat.o build/fs.o build/editor.o build\fsdata.o build\panic.o build\delay.o build\ata.o
+set OBJS=build\kernel_entry.o build/asm_console.o build\kernel.o build\graphics.o build\keyboard.o build\mouse.o build\shell.o build\timer.o build\metrics.o build/snake.o build/demo3d.o build/raycast.o build/talons.o build/chat.o build/fs.o build/editor.o build\fsdata.o build\panic.o build\delay.o build\ata.o build\time.o
 if exist build\idt.o   set OBJS=!OBJS! build\idt.o
 if exist build\idt_c.o set OBJS=!OBJS! build\idt_c.o
 
@@ -99,30 +118,11 @@ for %%F in (build\kernel.bin) do set KBSIZE=%%~zF
 echo      kernel.bin size: %KBSIZE% bytes
 
 echo [6/7] Creating bootable image...
-fsutil file createnew build\os.img 1474560 >nul 2>nul
 
-dd if=build\boot.bin of=build\os.img bs=512 count=1 conv=notrunc 2>nul
-
-dd if=build\kernel.bin of=build\os.img bs=512 seek=1 conv=notrunc 2>nul
+python makeimg.py --boot build/boot.bin --kernel build/kernel.bin --out build/os.img
 if errorlevel 1 goto :error
 
-echo [7/7] Creating bootable ISO...
-
-if not exist build\iso mkdir build\iso
-
-copy /y build\os.img build\iso\os.img >nul
-if errorlevel 1 goto :error
-
-xorrisofs ^
-  -o build\NwOS.iso ^
-  -b os.img ^
-  -c boot.cat ^
-  build\iso
-
-if errorlevel 1 goto :error
-
-echo.
-echo ISO created: build\NwOS.iso
+echo Created img!
 
 echo.
 echo === Build complete ===

@@ -2,7 +2,7 @@
 [ORG 0x7C00]
 
 KERNEL_SEG equ 0x1000
-SECTORS_TO_READ equ 154
+SECTORS_TO_READ equ 163
 
 start:
     cli

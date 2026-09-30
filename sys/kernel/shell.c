@@ -4,6 +4,7 @@
 #include "keyboard.h"
 #include "panic.h"
 #include "delay.h"
+#include "time.h"
 
 #define BUF_MAX 128
 #define LINE_MAX 22
@@ -26,6 +27,17 @@ static int starts_with(const char *s, const char *p);
 extern void kernel_panic_safe(const char *msg);
 extern void kernel_panic_fatal(const char *msg);
 static void sys_error_delete(void);
+
+int debug = 0; // 0 = false, 1 = true
+
+static int atoi(const char *s) {
+    int sign = 1;
+    while (*s == ' ') s++;
+    if (*s == '-') { sign = -1; s++; }
+    int v = 0;
+    while (*s >= '0' && *s <= '9') { v = v * 10 + (*s - '0'); s++; }
+    return v * sign;
+}
 
 static void push_line(const char *s) {
     if (line_count == LINE_MAX) {
@@ -193,14 +205,14 @@ static void cmd_cat(const char *path) {
 }
 
 static void nwfetch(void) {
-    print("   ..      "); print("NwOS v2.0.5\n");
+    print("   ..      "); print("NwOS v2.0.6\n");
     print("  /  \\     "); print("-------------------\n");
     print("  |  |     "); print("Kernel:     C\n");
     print("  |  |     "); print("Video:      VGA\n");
     print("  |  |     "); print("Resolution: 640x480\n");
     print("  ----     "); print("Bootloader: NASM\n");
     print("  |  |     "); print("Arch:       32-bit (x86)\n");
-    print("  ---      "); print("Shell:      v2.0.5\n");
+    print("  ---      "); print("Shell:      v2.0.6\n");
 }
 
 static void cmd_help(void) {
@@ -237,10 +249,11 @@ static void HelpMore(void) {
     push_line("  asm                  - ASM console");
     push_line("  panic                - safe panic");
     push_line("  panic --fatal        - fatal panic");
+    push_line("  timer NUM             - wait for NUM");
 }
 
 static void cmd_about(void) {
-    push_line("NwOS v2.0.5");
+    push_line("NwOS v2.0.6");
     push_line("Copyright (c) 2026 User014015");
     push_line("Kernel: C + NASM, clang + ld.lld");
     push_line("VGA 640x480x16, PS/2 keyboard + mouse");
@@ -266,7 +279,7 @@ static int current_theme = 1;
 
 static void set_theme_light(void) {
     THEME_BG       = WHITE;
-    THEME_FG       = BLACK;
+    THEME_FG       = BLUE;
     THEME_BAR      = BLUE;
     THEME_BAR_FG   = WHITE;
     THEME_BTN      = LIGHT_GRAY;
@@ -421,13 +434,27 @@ static void run_command(void) {
     else if (starts_with(cmd, "cat("))   { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 4, a, sizeof(a)); cmd_cat(a); }
     else if (starts_with(cmd, "cat "))   { cmd_cat(cmd + 4); }
     else if (starts_with(cmd, "edit("))  { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 5, a, sizeof(a)); shell_run_editor(a); }
+    else if (str_eq(cmd, "debug on")) { debug = 1; push_line("Debug: True"); }
+    else if (str_eq(cmd, "debug off")) { debug = 0; push_line("Debug: false"); }
     else if (starts_with(cmd, "edit "))  { shell_run_editor(cmd + 5); }
     else if (str_eq(cmd, "asm"))         { push_line("Entering ASM Console..."); shell_run_asmconsole(); return; }
+    else if (starts_with(cmd, "timer ")) { int sec = atoi(cmd + 6); time(sec); }
     else if (str_eq(cmd, "panic")) {
-        kernel_panic_safe("SHELL_FAULT: User executed manual panic command.\nError Code: 0x00004B11\nSystem Status: Normal\nUser Action: Tested Panic Handler");
+        if (debug == 1) {
+            push_line("Manual calling \"Safe panic\"..");
+            kernel_panic_safe("SHELL_FAULT: User executed manual panic command.\nError Code: 0x00004B11\nSystem Status: Normal\nUser Action: Tested Panic Handler");
+        } else {
+            kernel_panic_safe("SHELL_FAULT: User executed manual panic command.\nError Code: 0x00004B11\nSystem Status: Normal\nUser Action: Tested Panic Handler");
+        }
     }
     else if (str_eq(cmd, "panic --fatal") || str_eq(cmd, "panic -f")) {
-        kernel_panic_fatal("CRITICAL_SHELL_FAULT: User triggered manual fatal panic!\nError Code: 0x000012091\nDamage Level: Severe System Corruption\nReason: Shell override command invocation.");
+        if (debug == 1) {
+            push_line("Manual calling \"Critical panic\"..");
+            delay_ms(6700);
+            kernel_panic_fatal("CRITICAL_SHELL_FAULT: User triggered manual fatal panic!\nError Code: 0x000012091\nDamage Level: Severe System Corruption\nReason: Shell override command invocation.");
+        } else {
+            kernel_panic_fatal("CRITICAL_SHELL_FAULT: User triggered manual fatal panic!\nError Code: 0x000012091\nDamage Level: Severe System Corruption\nReason: Shell override command invocation.");
+        }
     }
     else if (str_eq(cmd, "rm sys/") || str_eq(cmd, "rm sys")) {
         sys_error_delete();
@@ -443,7 +470,7 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.5");
+    push_line("NwOS Shell v2.0.6");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
@@ -453,7 +480,7 @@ void shell_draw(void) {
     gfx_clear(THEME_BG);
     
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.5  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.6  |  Shell", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;
@@ -471,9 +498,9 @@ void shell_draw(void) {
     int cy = 40 + printed_lines * 16;
     if (cy > 424) cy = 424; 
 
-    gfx_puts(8, cy, ">", LIGHT_GREEN, THEME_BG);
-    gfx_puts(24, cy, buf, THEME_FG, THEME_BG);
-    gfx_rect(24 + len * 8, cy, 6, 18, LIGHT_GRAY);
+    gfx_puts(8, cy, ">", BLUE, THEME_BG);
+    gfx_puts(24, cy, buf, BLUE, THEME_BG); // theme fg
+    gfx_rect(24 + len * 8, cy, 6, 18, BLUE); // light gray basic
 
     gfx_rect(0, 448, 640, 32, THEME_BAR);
     gfx_puts(8, 456, "Type commands. ESC = Welcome.", THEME_BAR_FG, THEME_BAR);

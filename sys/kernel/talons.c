@@ -15,7 +15,7 @@
 #define C_SHADOW      GREEN
 #define C_SNOW        WHITE
 
-#define MAX_FISH 24
+#define MAX_FISH 32
 typedef struct { int x, y; } fish_t;
 static fish_t fishes[MAX_FISH];
 static int    fish_spawn_count = 0;
@@ -76,7 +76,7 @@ static void carve_lake(int cx, int cy, int r) {
             int dx = x - cx, dy = y - cy;
             int d2 = dx*dx + dy*dy;
             if (d2 <= r2) {
-                int h = 40 + (d2 * 28) / r2;
+                int h = 40 + (d2 * 38) / r2;
                 put_height(x, y, h);
             }
         }
@@ -93,12 +93,13 @@ static void carve_river(int x0, int y0, int x1, int y1) {
     for (int i = 0; i <= steps; i++) {
         int x = x0 + (dx * i) / steps;
         int y = y0 + (dy * i) / steps;
-        int jit = (fsin(phase * 16) * 4) >> 8;
+        int jit = (fsin(phase * 12) * 6) >> 8;
         if (adx > ady) y += jit; else x += jit;
         phase++;
         for (int ky = -3; ky <= 3; ky++)
             for (int kx = -3; kx <= 3; kx++)
-                put_height(x + kx, y + ky, 48);
+                if (kx*kx + ky*ky <= 12)
+                    put_height(x + kx, y + ky, 48);
     }
 }
 
@@ -116,36 +117,57 @@ static void generate_terrain(void) {
         }
     }
 
-    carve_lake( 80,  80, 40);
-    carve_lake(260, 100, 45);
-    carve_lake(430,  80, 35);
-    carve_lake(130, 270, 42);
-    carve_lake(340, 300, 50);
-    carve_lake(470, 380, 38);
-    carve_lake(200, 430, 45);
-    carve_lake(450, 220, 32);
-    carve_lake( 60, 400, 35);
-    carve_lake(280, 200, 28);
+    carve_lake( 90,  90, 70);
+    carve_lake(420,  90, 75);
+    carve_lake( 90, 420, 72);
+    carve_lake(420, 420, 78);
 
-    carve_river( 80,  80, 130, 270);
-    carve_river(130, 270, 200, 430);
-    carve_river(260, 100, 280, 200);
-    carve_river(280, 200, 340, 300);
-    carve_river(430,  80, 450, 220);
-    carve_river(450, 220, 470, 380);
-    carve_river(340, 300, 470, 380);
-    carve_river(200, 430, 340, 300);
-    carve_river( 60, 400, 200, 430);
+    carve_lake(256, 130, 55);
+    carve_lake(256, 380, 58);
+    carve_lake(130, 256, 52);
+    carve_lake(380, 256, 55);
+    carve_lake(200, 200, 45);
+    carve_lake(310, 310, 48);
+
+    carve_lake(256, 256, 35);
+
+    carve_river( 90,  90, 356, 356);
+    carve_river(420,  90, 256, 256);
+    carve_river( 90, 420, 256, 256);
+    carve_river(420, 420, 256, 256);
+
+    carve_river( 90,  90, 420,  90);
+    carve_river(420,  90, 420, 420);
+    carve_river(420, 420,  90, 420);
+    carve_river( 90, 420,  90,  90);
+
+    carve_river(256, 130, 200, 200);
+    carve_river(200, 200, 130, 256);
+    carve_river(256, 130, 380, 256);
+    carve_river(380, 256, 310, 310);
+    carve_river(310, 310, 256, 380);
+    carve_river(256, 380, 130, 256);
+    carve_river(130, 256, 256, 130);
+
+    carve_river(256, 130, 256,   0);
+    carve_river(256, 380, 256, 511);
+    carve_river(130, 256,   0, 256);
+    carve_river(380, 256, 511, 256);
+
+    carve_river(  0, 130, 130, 130);
+    carve_river(380, 130, 511, 130);
+    carve_river(  0, 380, 130, 380);
+    carve_river(380, 380, 511, 380);
 }
 
 static void spawn_fishes(void) {
     fish_spawn_count = 0;
     int tries = 0;
-    while (fish_spawn_count < MAX_FISH && tries < 2000) {
+    while (fish_spawn_count < MAX_FISH && tries < 3000) {
         tries++;
         int x = rnd_t() & HM_MASK;
         int y = rnd_t() & HM_MASK;
-        if (heightmap[y][x] < 52) {
+        if (heightmap[y][x] < 50) {
             fishes[fish_spawn_count].x = x;
             fishes[fish_spawn_count].y = y;
             fish_spawn_count++;
@@ -159,11 +181,11 @@ void talons_init(void) {
 
     generate_terrain();
     spawn_fishes();
-    cam_x = 200 << 8;
-    cam_y = 220 << 8;
-    cam_z = 150;
+    cam_x = 256 << 8;
+    cam_y = 256 << 8;
+    cam_z = 170;
     cam_a = 0;
-    cam_speed = 3;
+    cam_speed = 5;
     cam_pitch = 0;
     horizon = 240;
     bob_phase = 0;
@@ -182,11 +204,11 @@ void talons_handle_key(unsigned char key) {
     switch (key) {
         case KEY_LEFT:   cam_a = (cam_a + 248) & 255; break;
         case KEY_RIGHT:  cam_a = (cam_a + 8)   & 255; break;
-        case KEY_UP:     cam_pitch += 350;
-        case KEY_DOWN:   cam_pitch -= 50;
-        // case KEY_PGUP:   cam_z += 5; if (cam_z > 220) cam_z = 220; break;
-        // case KEY_PGDN:   cam_z -= 5; if (cam_z <  80) cam_z =  80; break;
-        case 'w': case 'W': cam_speed++; if (cam_speed > 10) cam_speed = 10; break;
+        case KEY_UP:     cam_pitch += 135; //if (cam_pitch >  100) cam_pitch =  100; break;
+        case KEY_DOWN:   cam_pitch -= 55; //if (cam_pitch < -100) cam_pitch = -100; break;
+        case KEY_PGUP:   cam_z += 6; if (cam_z > 240) cam_z = 240; break;
+        case KEY_PGDN:   cam_z -= 6; if (cam_z <  80) cam_z =  80; break;
+        case 'w': case 'W': cam_speed++; if (cam_speed > 15) cam_speed = 15; break;
         case 's': case 'S': cam_speed--; if (cam_speed < 1)  cam_speed = 1;  break;
 
         case 'f': case 'F':
@@ -284,7 +306,7 @@ static void draw_fishing(void) {
     }
 }
 
-#define MAX_DIST 955 // DISTANCE
+#define MAX_DIST 500
 
 void talons_draw(void) {
     draw_sky();
@@ -292,7 +314,8 @@ void talons_draw(void) {
     int cam_h = cam_z;
 
     for (int col = 0; col < 640; col++) {
-        int ray_ang = (cam_a + ((col - 320) * 17 >> 8)) & 255;
+        /* FOV 120°: ±42.5 единиц в 0..255-пространстве */
+        int ray_ang = (cam_a + ((col - 320) * 34 >> 8)) & 255;
         int dx = fcos(ray_ang);
         int dy = fsin(ray_ang);
 
@@ -326,11 +349,8 @@ void talons_draw(void) {
                 int ye = ybuffer > 480 ? 480 : ybuffer;
                 if (ys < ye) {
                     unsigned char c;
-                    if (is_fish && h < 70) {
-                        c = BLACK;
-                    } else {
-                        c = terrain_color(h, slope);
-                    }
+                    if (is_fish && h < 70) c = BLACK;
+                    else                   c = terrain_color(h, slope);
                     gfx_vline_fast(col, ys, ye, c);
                 }
                 ybuffer = sy;
@@ -344,8 +364,8 @@ void talons_draw(void) {
             if      (d < 25)  step = 1;
             else if (d < 60)  step = 2;
             else if (d < 120) step = 3;
-            else if (d < 200) step = 5;
-            else              step = 8;
+            else if (d < 220) step = 4;
+            else              step = 6;
             d += step;
         }
     }
@@ -374,26 +394,15 @@ void talons_draw(void) {
 
     buf[i++] = ' '; buf[i++] = ' ';
     p = "SPD "; while (*p) buf[i++] = *p++;
-    buf[i++] = '0' + cam_speed;
+    if (cam_speed >= 10) buf[i++] = '1';
+    buf[i++] = '0' + (cam_speed % 10);
 
     buf[i++] = ' '; buf[i++] = ' ';
-    p = "PIT "; while (*p) buf[i++] = *p++;
-    v = cam_pitch;
-    if (v < 0) { buf[i++] = '-'; v = -v; } else { buf[i++] = '+'; }
-    if (v > 99) v = 99;
-    buf[i++] = '0' + (v / 10);
-    buf[i++] = '0' + (v % 10);
+    p = "FOV 120"; while (*p) buf[i++] = *p++;
 
     buf[i++] = ' '; buf[i++] = ' ';
     p = "FISH "; while (*p) buf[i++] = *p++;
     v = fish_count;
-    { char t[8]; int tt = 0; if (v == 0) t[tt++] = '0';
-      while (v > 0) { t[tt++] = '0' + (v % 10); v /= 10; }
-      while (tt) buf[i++] = t[--tt]; }
-
-    buf[i++] = ' '; buf[i++] = ' ';
-    p = "SEEN "; while (*p) buf[i++] = *p++;
-    v = fish_spawn_count;
     { char t[8]; int tt = 0; if (v == 0) t[tt++] = '0';
       while (v > 0) { t[tt++] = '0' + (v % 10); v /= 10; }
       while (tt) buf[i++] = t[--tt]; }
@@ -406,7 +415,7 @@ void talons_draw(void) {
 
     gfx_puts(8, 456, buf, THEME_BAR_FG, THEME_BAR);
 
-    const char *hint = "W/S=spd U/D=pitch PgUp/PgDn=alt F=fish";
+    const char *hint = "W/S=spd  U/D=pitch  PgUp/PgDn=alt  F=fish";
     int hl = 0; while (hint[hl]) hl++;
     gfx_puts(640 - hl * 8 - 8, 456, hint, THEME_BAR_FG, THEME_BAR);
 }

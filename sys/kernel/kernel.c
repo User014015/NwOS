@@ -162,7 +162,7 @@ void shell_run_game(const char *name) {
 static void draw_welcome(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.5  |  Welcome", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.6  |  Welcome", THEME_BAR_FG, THEME_BAR);
 
     gfx_puts(120, 40, "=== WELCOME TO NwOS ===", YELLOW, THEME_BG);
     gfx_puts(190, 60, "Pick an option below", THEME_FG, THEME_BG);
@@ -186,7 +186,7 @@ static void draw_welcome(void) {
 static void draw_menu(void) {
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.5  |  Personal Menu", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.6  |  Personal Menu", THEME_BAR_FG, THEME_BAR);
 
     gfx_rect(MENU_MX, MENU_MY, MENU_MW, MENU_MH, THEME_FG);          /* рамка */
     gfx_rect(MENU_MX + 2, MENU_MY + 2, MENU_MW - 4, MENU_MH - 4, THEME_BG);
@@ -284,7 +284,7 @@ static void draw_calc(void) {
 static void draw_game(void) {
     gfx_clear(BLACK);
     gfx_rect(0, 0, 640, 32, BLUE);
-    gfx_puts(8, 8, "NwOS 2.0.5  |  Game", WHITE, BLUE);
+    gfx_puts(8, 8, "NwOS 2.0.6  |  Game", WHITE, BLUE);
 
     gfx_puts(60, 100, "Running game:", LIGHT_GRAY, BLACK);
     gfx_puts(60, 120, game_name, YELLOW, BLACK);
@@ -356,20 +356,20 @@ static int u2s(unsigned int v, char *out) {
 static void draw_topbar(void) {
     gfx_rect(0, 0, 640, 32, THEME_BAR);
 
-    const char *title = "NwOS 2.0.5";
+    const char *title = "NwOS 2.0.6";
     switch (current) {
-        case SCR_WELCOME: title = "NwOS 2.0.5  |  Welcome";       break;
-        case SCR_MENU:    title = "NwOS 2.0.5  |  Personal Menu"; break;
-        case SCR_SHELL:   title = "NwOS 2.0.5  |  Shell";         break;
-        case SCR_CALC:    title = "NwOS 2.0.5  |  Calculator";    break;
-        case SCR_GAME:    title = "NwOS 2.0.5  |  Game";          break;
-        case SCR_GAMES:   title = "NwOS 2.0.5  |  Games";         break;
-        case SCR_SNAKE:   title = "NwOS 2.0.5  |  Snake";         break;
-        case SCR_DEMO3D:  title = "NwOS 2.0.5  |  3D Demo";       break;
-        case SCR_RAYCAST: title = "NwOS 2.0.5  |  Castle NwOS";   break;
-        case SCR_TALONS:  title = "NwOS 2.0.5  |  Talons";        break;
-        case SCR_CHAT:    title = "NwOS 2.0.5  |  Chat";          break;
-        case SCR_EDITOR:  title = "NwOS 2.0.5  |  Editor";        break;
+        case SCR_WELCOME: title = "NwOS 2.0.6  |  Welcome";       break;
+        case SCR_MENU:    title = "NwOS 2.0.6  |  Personal Menu"; break;
+        case SCR_SHELL:   title = "NwOS 2.0.6  |  Shell";         break;
+        case SCR_CALC:    title = "NwOS 2.0.6  |  Calculator";    break;
+        case SCR_GAME:    title = "NwOS 2.0.6  |  Game";          break;
+        case SCR_GAMES:   title = "NwOS 2.0.6  |  Games";         break;
+        case SCR_SNAKE:   title = "NwOS 2.0.6  |  Snake";         break;
+        case SCR_DEMO3D:  title = "NwOS 2.0.6  |  3D Demo";       break;
+        case SCR_RAYCAST: title = "NwOS 2.0.6  |  Castle NwOS";   break;
+        case SCR_TALONS:  title = "NwOS 2.0.6  |  Talons";        break;
+        case SCR_CHAT:    title = "NwOS 2.0.6  |  Chat";          break;
+        case SCR_EDITOR:  title = "NwOS 2.0.6  |  Editor";        break;
     }
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char buf[64];
