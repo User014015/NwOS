@@ -235,6 +235,14 @@ static void cmd_help(void) {
     push_line("  more                 - More commands");
 }
 
+static void current_ver(void) {
+    push_line("\nCurrent version: 2.0.6\n");
+}
+
+static void HelpMore2(void) {
+    push_line("ver                    - Check version");
+}
+
 static void HelpMore(void) {
     push_line("--- MORE COMMANDS ---");
     push_line("  ls                   - list files");
@@ -250,6 +258,7 @@ static void HelpMore(void) {
     push_line("  panic                - safe panic");
     push_line("  panic --fatal        - fatal panic");
     push_line("  timer NUM             - wait for NUM");
+    push_line("  more2                 - More commands (2)");
 }
 
 static void cmd_about(void) {
@@ -439,6 +448,8 @@ static void run_command(void) {
     else if (starts_with(cmd, "edit "))  { shell_run_editor(cmd + 5); }
     else if (str_eq(cmd, "asm"))         { push_line("Entering ASM Console..."); shell_run_asmconsole(); return; }
     else if (starts_with(cmd, "timer ")) { int sec = atoi(cmd + 6); time(sec); }
+    else if (str_eq(cmd, "ver")) { current_ver(); }
+    else if (str_eq(cmd, "more2")) { HelpMore2(); }
     else if (str_eq(cmd, "panic")) {
         if (debug == 1) {
             push_line("Manual calling \"Safe panic\"..");

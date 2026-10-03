@@ -314,7 +314,6 @@ void talons_draw(void) {
     int cam_h = cam_z;
 
     for (int col = 0; col < 640; col++) {
-        /* FOV 120°: ±42.5 единиц в 0..255-пространстве */
         int ray_ang = (cam_a + ((col - 320) * 34 >> 8)) & 255;
         int dx = fcos(ray_ang);
         int dy = fsin(ray_ang);
