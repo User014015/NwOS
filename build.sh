@@ -39,8 +39,9 @@ fi
 echo "Compiling asm console.."
 nasm -f elf32 sys/asm_console/asm_console.asm -o build/asm_console.o
 
-echo "[2.5/7] Packing sys/rootfs..."
-python3 sys/make_fsdata.py
+echo "[2.5/7] Generating rootfs..."
+python3 gen_rootfs.py
+if [ $? -ne 0 ]; then echo "gen_rootfs failed"; exit 1; fi
 
 clang ${CFLAGS} -c sys/kernel/fsdata.c -o build/fsdata.o
 
@@ -80,6 +81,8 @@ echo "compiling ata.o.."
 clang ${CFLAGS} -c sys/kernel/ata.c      -o build/ata.o
 echo "compiling time.."
 clang ${CFLAGS} -c sys/kernel/time.c     -o build/time.o
+echo "compiling fs data.."
+clang $CFLAGS -c build/rootfs_data.c -o build/rootfs_data.o
 
 if [ -f sys/kernel/idt.c ]; then
     clang ${CFLAGS} -c sys/kernel/idt.c -o build/idt_c.o
@@ -112,6 +115,7 @@ OBJS=(
     build/delay.o
     build/ata.o
     build/time.o
+    build/rootfs_data.o
 )
 
 [ -f build/idt.o ] && OBJS+=(build/idt.o)

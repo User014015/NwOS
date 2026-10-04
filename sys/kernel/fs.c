@@ -1,6 +1,9 @@
 #include "fs.h"
 #include "fs.h"
 #include "ata.h"
+#include "rootfs.h"
+#include "fs.h"
+#include "ata.h"
 
 #define FS_METADATA_LBA 100
 #define FS_DATA_LBA_START 10
@@ -47,8 +50,6 @@ static int str_len(const char *s) {
     while (s[n]) n++; 
     return n; 
 }
-#include "fs.h"
-#include "ata.h"
 
 #define FS_METADATA_LBA 2
 
@@ -67,49 +68,35 @@ void fs_load_from_disk(void) {
 }
 
 void fs_init(void) {
-    ata_init();
+    for (int i = 0; i < FS_MAX_NODES; i++) nodes[i].used = 0;
 
-    fs_load_from_disk();
-
-    if (!nodes[0].used || nodes[0].type != FS_DIR || nodes[0].name[0] != '/') {
-        for (int i = 0; i < FS_MAX_NODES; i++) {
-            nodes[i].used = 0;
-        }
-
-        root = 0;
-        nodes[root].used   = 1;
-        nodes[root].type   = FS_DIR;
-        nodes[root].parent = -1;
-        str_copy_n(nodes[root].name, "/", FS_NAME_LEN);
-
-        current_dir = root;
-
-        fs_mkdir("/bin");
-        fs_mkdir("/etc");
-        fs_mkdir("/home");
-        fs_mkdir("/home/data");
-        fs_mkdir("/home/user");
-        fs_mkdir("/sys");
-        
-        const char *sh_code = "#!/bin/sh\n";
-        fs_write("/bin/sh", sh_code, str_len(sh_code));
-
-        const char *hostname = "NwOS-PC\nNAME:ROOT\n";
-        fs_write("/etc/hostname", hostname, str_len(hostname));
-
-        const char *os_rel = "NAME=\"NwOS\"\nVERSION=\"2.0.6\"\nID=nwos\n";
-        fs_write("/etc/os-release", os_rel, str_len(os_rel));
-
-        const char *read_info = "Welcome to NwOS!\nUser environment initialized.\n";
-        fs_write("/home/user/read.info", read_info, str_len(read_info));
-
-        const char *panic_init = "=== PANIC LOG INITIALIZED ===\n";
-        fs_write("/sys/panics.j", panic_init, str_len(panic_init));
-
-        fs_sync_to_disk();
-    }
+    root = 0;
+    nodes[root].used   = 1;
+    nodes[root].type   = FS_DIR;
+    nodes[root].parent = -1;
+    str_copy_n(nodes[root].name, "/", FS_NAME_LEN);
 
     current_dir = root;
+
+    /* Базовые директории */
+    fs_mkdir("/sys");
+    fs_mkdir("/home");
+    fs_mkdir("/tmp");
+    fs_mkdir("/saved");
+
+    /* Загружаем файлы из rootfs_entries[] */
+    for (int i = 0; i < rootfs_count; i++) {
+        const rootfs_entry_t *e = &rootfs_entries[i];
+
+        char full[FS_NAME_LEN * 8];
+        int j = 0;
+        full[j++] = '/';
+        for (int k = 0; e->path[k] && j < (int)sizeof(full) - 1; k++)
+            full[j++] = e->path[k];
+        full[j] = 0;
+
+        fs_write(full, e->data, e->size);
+    }
 }
 
 static int alloc_node(void) {
@@ -393,4 +380,103 @@ int fs_delete_recursive(const char *path) {
     }
     nodes[i].used = 0;
     return 0;
+}
+// CNF
+
+int cnf_get(const char *path, const char *key, char *out, int max) {
+    static char buf[FS_MAX_SIZE];
+    int n = fs_read(path, buf, FS_MAX_SIZE);
+    if (n < 0) return -1;
+
+    int klen = 0;
+    while (key[klen]) klen++;
+
+    int i = 0;
+    while (i < n) {
+        if (buf[i] == '\n' || buf[i] == '#' || buf[i] == '\r') {
+            while (i < n && buf[i] != '\n') i++;
+            if (i < n) i++;
+            continue;
+        }
+
+        int match = 1;
+        for (int k = 0; k < klen; k++) {
+            if (i + k >= n || buf[i + k] != key[k]) { match = 0; break; }
+        }
+        if (!match || i + klen >= n || buf[i + klen] != '=') {
+            while (i < n && buf[i] != '\n') i++;
+            if (i < n) i++;
+            continue;
+        }
+
+        i += klen + 1;
+        int v = 0;
+        while (i < n && buf[i] != '\n' && buf[i] != '\r' && v < max - 1)
+            out[v++] = buf[i++];
+        out[v] = 0;
+        return v;
+    }
+    return -1;
+}
+
+int cnf_set(const char *path, const char *key, const char *value) {
+    static char buf[FS_MAX_SIZE];
+    int n = fs_read(path, buf, FS_MAX_SIZE);
+    if (n < 0) n = 0;
+
+    int klen = 0;
+    while (key[klen]) klen++;
+    int vlen = 0;
+    while (value[vlen]) vlen++;
+
+    char out_buf[FS_MAX_SIZE];
+    int out = 0, i = 0, replaced = 0;
+
+    while (i < n) {
+        int ls = i;
+        while (i < n && buf[i] != '\n') i++;
+        int le = i;
+        if (i < n) i++;
+
+        int match = (le - ls >= klen + 1);
+        if (match) {
+            for (int k = 0; k < klen; k++)
+                if (buf[ls + k] != key[k]) { match = 0; break; }
+            if (match && buf[ls + klen] != '=') match = 0;
+        }
+
+        if (match && !replaced) {
+            for (int k = 0; k < klen; k++) if (out < FS_MAX_SIZE-1) out_buf[out++] = key[k];
+            if (out < FS_MAX_SIZE-1) out_buf[out++] = '=';
+            for (int k = 0; k < vlen; k++) if (out < FS_MAX_SIZE-1) out_buf[out++] = value[k];
+            if (out < FS_MAX_SIZE-1) out_buf[out++] = '\n';
+            replaced = 1;
+        } else {
+            for (int k = ls; k < le; k++) if (out < FS_MAX_SIZE-1) out_buf[out++] = buf[k];
+            if (out < FS_MAX_SIZE-1) out_buf[out++] = '\n';
+        }
+    }
+
+    if (!replaced) {
+        for (int k = 0; k < klen; k++) if (out < FS_MAX_SIZE-1) out_buf[out++] = key[k];
+        if (out < FS_MAX_SIZE-1) out_buf[out++] = '=';
+        for (int k = 0; k < vlen; k++) if (out < FS_MAX_SIZE-1) out_buf[out++] = value[k];
+        if (out < FS_MAX_SIZE-1) out_buf[out++] = '\n';
+    }
+
+    out_buf[out] = 0;
+    fs_write(path, out_buf, out);
+    return 0;
+}
+
+int fs_wipe_all(void) {
+    int removed = 0;
+    for (int i = 0; i < FS_MAX_NODES; i++) {
+        if (nodes[i].used && i != root) {
+            nodes[i].used = 0;
+            removed++;
+        }
+    }
+    current_dir = root;
+    return removed;
 }

@@ -1,0 +1,4 @@
+# Boot configuration
+timeout=3
+default_shell=shell
+debug_mode=off
