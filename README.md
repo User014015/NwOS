@@ -13,7 +13,7 @@
 <img width="500" height="350" alt="LogoNwOS" src="https://github.com/user-attachments/assets/554e127c-069e-4827-86cd-a48a4062e739" />
 
 
-This is NwOS v2.0.3 Beta test
+This is NwOS v2.0.7
 
 A x86 operation system made from scratch
 
@@ -25,17 +25,9 @@ A x86 operation system made from scratch
 - 4.Shell
 - 5.FS
 
-## About
-
-This is only v2.0 Beta, check v1.0
-
-You can download 2 images, but the V2 doesnt support NWC right now
-
 ## Launch QEMU
 
-type:
-
-./run.bat
+Read guide in releases
 
 ! Dont Fullscreen, or its gonna be laggy !
 
