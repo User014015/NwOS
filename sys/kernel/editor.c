@@ -207,7 +207,7 @@ void editor_draw(void) {
     g_dbg_buflen = buf_len;
     gfx_clear(THEME_BG);
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    const char *title = "NwOS 2.0.0  |  Editor";
+    const char *title = "NwOS 2.0.7  |  Editor";
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char fn[64];
     int i = 0;

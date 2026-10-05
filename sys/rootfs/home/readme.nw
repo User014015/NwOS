@@ -1,0 +1,30 @@
+// NwC lang
+// not released, but gonna be released in future
+// first: 1A means int
+// main means var name
+1A main() {
+    // main code
+    // we can put here print
+    print("Hello world!");
+    // it prints hello world,
+
+    // lets do a variable
+    1A money = 5;
+    // so we has 5 money
+    // lets output it
+    print("you has ", money, " money!");
+    // we outputed 'you has 5 money!'
+    // lets add some money
+    money += 2;
+    // now we has 7 money (5+2=7)
+    // lets do many money
+    // while money < 100, we gonna add them by 1
+    while (money < 100) {
+        money += 1;
+    }
+    // so we has 100 money
+    print("now you has ", money, " money!");
+    // lets end program
+    return 0;
+    // so we returned 0 means program ends with code 0
+}

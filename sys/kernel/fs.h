@@ -7,7 +7,8 @@
 
 #define FS_FILE 0
 #define FS_DIR  1
-
+int cnf_get(const char *path, const char *key, char *out, int max);
+int cnf_set(const char *path, const char *key, const char *value);
 void fs_init(void);
 
 int  fs_exists(const char *path);

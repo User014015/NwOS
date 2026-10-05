@@ -5,6 +5,7 @@
 #include "panic.h"
 #include "delay.h"
 #include "time.h"
+static int shell_ask(const char *question);
 
 #define BUF_MAX 128
 #define LINE_MAX 22
@@ -16,12 +17,57 @@ static int  len = 0;
 static char lines[LINE_MAX][BUF_MAX];
 static int  line_count = 0;
 static int scroll_offset = 0;
+
 static int len_cursor[MAX_SHELL];
 static int ptr_shell = 0;
 static int ptr_cursor = 0;
 
+static int shell_force = 0;
+
+// sudo
+static int shell_ask(const char *question) {
+    if (shell_force) {
+        push_line("[sudo] confirmation skipped");
+        return 1;
+    }
+
+    push_line("");
+    push_line(question);
+    push_line("Type 'y' + Enter to confirm, anything else cancels.");
+
+    shell_draw();
+    gfx_flip();
+
+    char answer[8];
+    int n = 0;
+
+    while (1) {
+        char c = keyboard_getchar();
+        if (c == 0) continue;
+        if (c == '\n') { answer[n] = 0; break; }
+        if (c == '\b') { if (n > 0) n--; continue; }
+        if (n < 7 && c >= 0x20 && c < 0x7F) answer[n++] = c;
+    }
+
+    char echo[16];
+    int e = 0;
+    echo[e++] = '>';
+    echo[e++] = ' ';
+    for (int i = 0; i < n && e < 14; i++) echo[e++] = answer[i];
+    echo[e] = 0;
+    push_line(echo);
+
+    return (n == 1 && (answer[0] == 'y' || answer[0] == 'Y'));
+}
+
+static void wait() {
+    for (volatile unsigned long i = 0; i < 25000000UL; i++)
+        __asm__ volatile ("pause");
+}
+
 extern unsigned char THEME_BG, THEME_FG, THEME_BAR, THEME_BAR_FG;
 extern unsigned char THEME_BTN, THEME_BTN_FG, THEME_SEL, THEME_SEL_FG;
+void kernel_panic_root_deleted(void);
 static void died_delete(void);
 
 static void push_line(const char *s);
@@ -112,8 +158,11 @@ static void print(const char *textt) {
 }
 
 static void copy_arg(const char *s, char *out, int max) {
+    while (*s == ' ') s++;
+    if (*s == '"') s++;
     int i = 0;
-    while (*s && *s != '"' && *s != ')' && i < max - 1) out[i++] = *s++;
+    while (*s && *s != '"' && *s != ')' && i < max - 1)
+        out[i++] = *s++;
     out[i] = 0;
 }
 
@@ -159,32 +208,42 @@ static void cmd_touch(const char *path) {
 }
 
 static void cmd_rm(const char *path) {
-    if (str_eq(path, "/") || str_eq(path, "-rf /") || str_eq(path, "-rf / --no-preserve-root") || str_eq(path, "/home/") || str_eq(path, "home/")) {
-        fs_delete_recursive("/");
-        push_line("Deleting sys/...");
-        shell_draw();
-        delay_ms(1200);
+    // rm /, sudo/no sudo
+    if (path[0] == '/' && path[1] == 0) {
+        if (!shell_ask("rm: remove ALL files from root filesystem?")) {
+            push_line("Cancelled.");
+            return;
+        }
 
-        push_line("Deleting home/...");
-        shell_draw();
-        delay_ms(1000);
+        push_line("rm: WARNING: system may become unstable");
+        push_line("rm: proceeding anyway...");
 
-        died_delete();
+        int removed = fs_wipe_all();
+
+        char buf2[64]; int b = 0;
+        const char *p = "rm: removed ";
+        while (*p) buf2[b++] = *p++;
+        if (removed == 0) buf2[b++] = '0';
+        else {
+            char t[12]; int tt = 0;
+            while (removed) { t[tt++] = '0' + (removed % 10); removed /= 10; }
+            while (tt) buf2[b++] = t[--tt];
+        }
+        p = " entries";
+        while (*p) buf2[b++] = *p++;
+        buf2[b] = 0;
+        push_line(buf2);
+
+        kernel_panic_root_deleted();
         return;
     }
-    if (str_eq(path, "-rf sys/") || str_eq(path, "sys/") || str_eq(path, "/sys/")) {
-        fs_delete_recursive("sys/");
-        push_line("Deleting sys/...");
-        shell_draw();
-        delay_ms(1200);
-        sys_error_delete();
-    }
 
-    if (fs_delete_recursive(path) == 0) {
-        push_line("Removed");
-    } else {
-        push_line("Not found");
-    }
+    /* ─── Обычное удаление ─── */
+    int r = fs_delete(path);
+    if (r == 0)       push_line("Removed");
+    else if (r == -2) push_line("Cannot delete root");
+    else if (r == -3) push_line("Directory not empty");
+    else              push_line("Not found");
 }
 
 static void cmd_pwd(void) {
@@ -209,15 +268,67 @@ static void cmd_cat(const char *path) {
     }
 }
 
+static void cmd_cnf_get(const char *args) {
+    char path[64], key[32];
+    int i = 0, j = 0;
+    while (*args == ' ') args++;
+    while (*args && *args != ' ' && i < 63) path[i++] = *args++;
+    path[i] = 0;
+    while (*args == ' ') args++;
+    while (*args && *args != ' ' && j < 31) key[j++] = *args++;
+    key[j] = 0;
+
+    if (!path[0] || !key[0]) {
+        push_line("Usage: cnf get <file> <key>");
+        return;
+    }
+
+    char value[128];
+    if (cnf_get(path, key, value, sizeof(value)) < 0) {
+        push_line("Key not found");
+        return;
+    }
+
+    char out[160];
+    int k = 0;
+    while (key[k] && k < 60) { out[k] = key[k]; k++; }
+    out[k++] = '='; out[k++] = ' ';
+    for (int m = 0; value[m] && k < 158; m++) out[k++] = value[m];
+    out[k] = 0;
+    push_line(out);
+}
+
+static void cmd_cnf_set(const char *args) {
+    char path[64], key[32], value[128];
+    int i = 0, j = 0, k = 0;
+    while (*args == ' ') args++;
+    while (*args && *args != ' ' && i < 63) path[i++] = *args++;
+    path[i] = 0;
+    while (*args == ' ') args++;
+    while (*args && *args != ' ' && j < 31) key[j++] = *args++;
+    key[j] = 0;
+    while (*args == ' ') args++;
+    while (*args && k < 127) value[k++] = *args++;
+    value[k] = 0;
+
+    if (!path[0] || !key[0] || !value[0]) {
+        push_line("Usage: cnf set <file> <key> <value>");
+        return;
+    }
+
+    cnf_set(path, key, value);
+    push_line("OK");
+}
+
 static void nwfetch(void) {
-    print("   ..      "); print("NwOS v2.0.6\n");
+    print("   ..      "); print("NwOS v2.0.7\n");
     print("  /  \\     "); print("-------------------\n");
     print("  |  |     "); print("Kernel:     C\n");
     print("  |  |     "); print("Video:      VGA\n");
     print("  |  |     "); print("Resolution: 640x480\n");
     print("  ----     "); print("Bootloader: NASM\n");
     print("  |  |     "); print("Arch:       32-bit (x86)\n");
-    print("  ---      "); print("Shell:      v2.0.6\n");
+    print("  ---      "); print("Shell:      v2.0.7\n");
 }
 
 static void cmd_help(void) {
@@ -242,7 +353,7 @@ static void cmd_help(void) {
 }
 
 static void current_ver(void) {
-    push_line("\nCurrent version: 2.0.6\n");
+    push_line("\nCurrent version: 2.0.7\n");
 }
 
 static void HelpMore2(void) {
@@ -265,10 +376,11 @@ static void HelpMore(void) {
     push_line("  panic --fatal        - fatal panic");
     push_line("  timer NUM             - wait for NUM");
     push_line("  more2                 - More commands (2)");
+    push_line("  sudo <cmd>           - run command without confirmations");
 }
 
 static void cmd_about(void) {
-    push_line("NwOS v2.0.6");
+    push_line("NwOS v2.0.7");
     push_line("Copyright (c) 2026 User014015");
     push_line("Kernel: C + NASM, clang + ld.lld");
     push_line("VGA 640x480x16, PS/2 keyboard + mouse");
@@ -408,6 +520,32 @@ int history(){
 }
 
 static void run_command(void) {
+    if (starts_with(buf, "sudo ")) {
+        char saved[BUF_MAX];
+        int saved_len = len;
+        for (int i = 0; i <= len && i < BUF_MAX; i++) saved[i] = buf[i];
+
+        int src = 5;
+        int dst = 0;
+        while (buf[src] && dst < BUF_MAX - 1) buf[dst++] = buf[src++];
+        buf[dst] = 0;
+        len = dst;
+
+        int save_force = shell_force;
+        shell_force = 1;
+
+        run_command();
+
+        shell_force = save_force;
+        for (int i = 0; i <= saved_len && i < BUF_MAX; i++) buf[i] = saved[i];
+        len = saved_len;
+        return;
+    }
+    if (str_eq(buf, "sudo")) {
+        push_line("Usage: sudo <command>");
+        return;
+    }
+
     char cmd[BUF_MAX];
     int i = 0;
     while (i < len && i < BUF_MAX - 1) { cmd[i] = buf[i]; i++; }
@@ -420,6 +558,7 @@ static void run_command(void) {
     push_line(echo);
 
     if (cmd[0] == 0) { /* void */ }
+
     else if (str_eq(cmd, "help"))         cmd_help();
     else if (str_eq(cmd, "clear"))        { line_count = 0; }
     else if (str_eq(cmd, "about"))        cmd_about();
@@ -450,6 +589,7 @@ static void run_command(void) {
     else if (starts_with(cmd, "mkdir(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 6, a, sizeof(a)); cmd_mkdir(a); }
     else if (starts_with(cmd, "touch(")) { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 6, a, sizeof(a)); cmd_touch(a); }
     else if (starts_with(cmd, "touch ")) { cmd_touch(cmd + 6); }
+    else if (str_eq(cmd, "rm sys/") || str_eq(cmd, "rm sys")) { sys_error_delete(); }
     else if (starts_with(cmd, "rm("))    { char a[FS_NAME_LEN * 4]; copy_arg(cmd + 3, a, sizeof(a)); cmd_rm(a); }
     else if (starts_with(cmd, "rm "))    { cmd_rm(cmd + 3); }
     else if (str_eq(cmd, "pwd"))         { cmd_pwd(); }
@@ -461,6 +601,8 @@ static void run_command(void) {
     else if (starts_with(cmd, "edit "))  { shell_run_editor(cmd + 5); }
     else if (str_eq(cmd, "asm"))         { push_line("Entering ASM Console..."); shell_run_asmconsole(); return; }
     else if (starts_with(cmd, "timer ")) { int sec = atoi(cmd + 6); time(sec); }
+    else if (starts_with(cmd, "cnf get ")) cmd_cnf_get(cmd + 8);
+    else if (starts_with(cmd, "cnf set ")) cmd_cnf_set(cmd + 8);
     else if (str_eq(cmd, "ver")) { current_ver(); }
     else if (str_eq(cmd, "more2")) { HelpMore2(); }
     else if (str_eq(cmd, "panic")) {
@@ -480,9 +622,6 @@ static void run_command(void) {
             kernel_panic_fatal("CRITICAL_SHELL_FAULT: User triggered manual fatal panic!\nError Code: 0x000012091\nDamage Level: Severe System Corruption\nReason: Shell override command invocation.");
         }
     }
-    else if (str_eq(cmd, "rm sys/") || str_eq(cmd, "rm sys")) {
-        sys_error_delete();
-    }
     else {
         push_line("Unknown. Type 'help'.");
     }
@@ -494,7 +633,7 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.6");
+    push_line("NwOS Shell v2.0.7");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
@@ -504,7 +643,7 @@ void shell_draw(void) {
     gfx_clear(THEME_BG);
 
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.6  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.7  |  Shell", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;
@@ -529,8 +668,6 @@ void shell_draw(void) {
     gfx_rect(0, 448, 640, 32, THEME_BAR);
     gfx_puts(8, 456, "Type commands. ESC = Welcome.", THEME_BAR_FG, THEME_BAR);
 }
-
-
 
 void shell_handle_key(char c) {
     unsigned char u = (unsigned char)c;
@@ -593,4 +730,23 @@ void shell_scroll(int delta) {
     int max = line_count - 1;
     if (max < 0) max = 0;
     if (scroll_offset > max) scroll_offset = max;
+}
+
+void kernel_panic_root_deleted(void) {
+    push_line("[ OK ] Removing sys/boot.cnf");
+    push_line("[ OK ] Removing sys/settings.cnf");
+    push_line("[ OK ] Removing sys/theme.cnf");
+    push_line("[ OK ] Removing sys/version.cnf");
+    push_line("[ OK ] Removing home/readme.nw");
+
+    shell_draw();
+    gfx_flip();
+
+    wait();
+
+    kernel_panic_fatal(
+        "CRITICAL_SYS_FAULT: Cannot read system files\n"
+        "Path: sys/\n"
+        "Error code: 0x000010026\n"
+        "Damage: Damaged disk, Lost of data\n");
 }

@@ -1,0 +1,142 @@
+// Doom on NwC
+// not working, not tested
+// but we add this in project
+// we already has a compiler
+// that outputs 3D .bmp files
+// who can contains: cube,
+// 2D House.
+
+mas map [
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,
+    1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,
+    1,0,0,1,1,0,0,0,0,0,1,1,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+];
+
+1A px = 640;
+1A py = 640;
+1A pa = 0;   // 0..255 = 0..360°
+
+1A get_cell(1A x, 1A y) {
+    if (x < 0 || x >= 16 || y < 0 || y >= 16) return 1;
+    return map[y * 16 + x];
+}
+
+1A cast_ray(1A ang) {
+    1A dx = gcos(ang);
+    1A dy = gsin(ang);
+
+    1A rx = px;
+    1A ry = py;
+    1A step = 0;
+    1A dist = 0;
+
+    while (step < 128) {
+        rx = rx + dx / 8;
+        ry = ry + dy / 8;
+        dist = dist + 32;
+        step = step + 1;
+
+        if (rx < 0 || rx >= 4096 || ry < 0 || ry >= 4096) {
+            return dist;
+        }
+
+        1A mx = rx / 256;
+        1A my = ry / 256;
+
+        if (get_cell(mx, my) != 0) {
+            return dist;
+        }
+    }
+    return dist;
+}
+
+0A render() {
+    1A col = 0;
+    while (col < 640) {
+        1A ray_a = pa + (col - 320) / 12;
+        ray_a = ray_a & 255;
+
+        1A dist = cast_ray(ray_a);
+        if (dist < 1) dist = 1;
+
+        1A wh = 120000 / dist;
+        if (wh > 480) wh = 480;
+        if (wh < 1) wh = 1;
+
+        1A y0 = 240 - wh / 2;
+        1A y1 = 240 + wh / 2;
+
+        1A wall_c = 15;
+        if (dist >  400) wall_c = 7;
+        if (dist >  900) wall_c = 8;
+        if (dist > 1600) wall_c = 0;
+
+        if (y0 > 0) gvline(col, 0, y0, 9);
+        gvline(col, y0, y1, wall_c);
+        if (y1 < 480) gvline(col, y1, 480, 6);
+
+        col = col + 1;
+    }
+}
+
+0A move_player(1A dx_units, 1A dy_units) {
+    1A nx = px + dx_units;
+    1A ny = py + dy_units;
+
+    1A mx = nx / 256;
+    1A my = py / 256;
+    if (mx >= 0 && mx < 16 && my >= 0 && my < 16) {
+        if (get_cell(mx, my) == 0) px = nx;
+    }
+
+    mx = px / 256;
+    my = ny / 256;
+    if (mx >= 0 && mx < 16 && my >= 0 && my < 16) {
+        if (get_cell(mx, my) == 0) py = ny;
+    }
+}
+
+1A main() {
+    gwindow(640, 480, "Doom-lite");
+
+    print("Controls:\n");
+    print("  W/S  - forward/back\n");
+    print("  A/D  - strafe\n");
+    print("  <->  - turn\n");
+    print("  ESC  - quit\n");
+
+    while (1) {
+        1A k = gkey();
+
+        if (k == 0x1B) break;
+
+        if (k == 0x80) pa = (pa - 4) & 255;         // ←
+        if (k == 0x81) pa = (pa + 4) & 255;         // →
+
+        if (k == 'W') move_player(gcos(pa) / 16, gsin(pa) / 16);
+        if (k == 'S') move_player(-gcos(pa) / 16, -gsin(pa) / 16);
+
+        if (k == 'A') move_player(gcos((pa - 64) & 255) / 16,
+                                   gsin((pa - 64) & 255) / 16);
+        if (k == 'D') move_player(gcos((pa + 64) & 255) / 16,
+                                   gsin((pa + 64) & 255) / 16);
+
+        render();
+        gpresent();
+    }
+
+    return 0;
+}

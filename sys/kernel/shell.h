@@ -15,4 +15,7 @@ void shell_run_game(const char *name);
 void shell_run_chat(void);
 void shell_run_editor(const char *name);
 void shell_run_asmconsole(void);
+void kernel_panic_root_deleted(void);
+
+int fs_wipe_all(void);
 #endif
