@@ -9,13 +9,21 @@ static int shell_ask(const char *question);
 
 #define BUF_MAX 128
 #define LINE_MAX 22
+#define MAX_SHELL 50
 
 static char buf[BUF_MAX];
+static char buf_shell[MAX_SHELL][BUF_MAX];
 static int  len = 0;
 static char lines[LINE_MAX][BUF_MAX];
 static int  line_count = 0;
 static int scroll_offset = 0;
+
+static int len_cursor[MAX_SHELL];
+static int ptr_shell = 0;
+static int ptr_cursor = 0;
+
 static int shell_force = 0;
+
 // sudo
 static int shell_ask(const char *question) {
     if (shell_force) {
@@ -111,7 +119,7 @@ static const char *parse_arg(const char *s, const char *cmd) {
     if (*s == '(') s++;
     if (*s == '"') s++;
     return s;
-} 
+}
 
 static int line_completed = 1;
 
@@ -329,6 +337,7 @@ static void cmd_help(void) {
     push_line("  clear                - clear screen");
     push_line("  echo <text>          - print text");
     push_line("  about                - about NwOS");
+    push_line("  history              - history command");
     push_line("  sys/menu             - open Personal Menu");
     push_line("  sys/welcome          - back to Welcome");
     push_line("  calc                 - calculator");
@@ -424,7 +433,7 @@ static void died_delete(void) {
     push_line("Fatal error: cannot read files.");
     shell_draw();
     delay_ms(3900);
-    
+
     kernel_panic_fatal("CRITICAL_SYS_FAULT: Cannot read system files!\nError Code: 0x000010026\nModule: VFS_ROOT_WIPE\nReason: Critical system directories cannot be readen\n");
 }
 
@@ -504,6 +513,12 @@ static void try_echo(const char *s) {
     push_line(s);
 }
 
+int history(){
+    for (int i = 0; i < ptr_shell; i++){
+        push_line(buf_shell[i]);
+    }
+}
+
 static void run_command(void) {
     if (starts_with(buf, "sudo ")) {
         char saved[BUF_MAX];
@@ -547,6 +562,7 @@ static void run_command(void) {
     else if (str_eq(cmd, "help"))         cmd_help();
     else if (str_eq(cmd, "clear"))        { line_count = 0; }
     else if (str_eq(cmd, "about"))        cmd_about();
+    else if (str_eq(cmd, "history"))        history();
     else if (str_eq(cmd, "sys/menu"))     shell_goto_menu();
     else if (str_eq(cmd, "sys/welcome"))  shell_goto_welcome();
     else if (str_eq(cmd, "calc"))         shell_run_calc();
@@ -625,7 +641,7 @@ void shell_init(void) {
 
 void shell_draw(void) {
     gfx_clear(THEME_BG);
-    
+
     gfx_rect(0, 0, 640, 32, THEME_BAR);
     gfx_puts(8, 8, "NwOS 2.0.7  |  Shell", THEME_BAR_FG, THEME_BAR);
 
@@ -643,7 +659,7 @@ void shell_draw(void) {
     }
 
     int cy = 40 + printed_lines * 16;
-    if (cy > 424) cy = 424; 
+    if (cy > 424) cy = 424;
 
     gfx_puts(8, cy, ">", BLUE, THEME_BG);
     gfx_puts(24, cy, buf, BLUE, THEME_BG); // theme fg
@@ -656,10 +672,52 @@ void shell_draw(void) {
 void shell_handle_key(char c) {
     unsigned char u = (unsigned char)c;
     if (u == KEY_ENTER) {
+        if (buf[0] == 0){
+            buf_shell[ptr_shell][0] = 0;
+        } else{
+            for (int i = 0; i < len; i++){
+                buf_shell[ptr_shell][i] = buf[i];
+            }
+        }
+        buf_shell[ptr_shell][len] = 0;
+        len_cursor[ptr_shell] = len;
+        if (ptr_shell >= MAX_SHELL-1){
+            for (int i = 0; i < MAX_SHELL; i++){
+                for (int a = 0; a < len_cursor[ptr_cursor]; a++){
+                    buf_shell[i][a] = buf_shell[i+1][a];
+                }
+                len_cursor[i] = len_cursor[i+1];
+            }
+        }
+        ptr_shell++;
+        ptr_cursor = ptr_shell;
         scroll_offset = 0;
         run_command();
     } else if (u == KEY_BACKSPACE) {
         if (len > 0) buf[--len] = 0;
+    } else if (u == KEY_UP){
+        if (ptr_cursor > 0){
+            ptr_cursor--;
+        }
+        for (int i = 0; i < BUF_MAX; i++){
+            buf[i] = 0;
+        }
+        for (int i = 0; i < len_cursor[ptr_cursor]; i++){
+            buf[i] = buf_shell[ptr_cursor][i];
+        }
+        len = len_cursor[ptr_cursor];
+    } else if (u == KEY_DOWN){
+        if (ptr_cursor < ptr_shell){
+            ptr_cursor++;
+        }
+        for (int i = 0; i < BUF_MAX; i++){
+            buf[i] = 0;
+        }
+        for (int i = 0; i < len_cursor[ptr_cursor]; i++){
+            buf[i] = buf_shell[ptr_cursor][i];
+        }
+        len = len_cursor[ptr_cursor];
+
     } else if (u >= 0x20 && u < 0x7F && len < BUF_MAX - 1) {
         buf[len++] = c;
         buf[len] = 0;
