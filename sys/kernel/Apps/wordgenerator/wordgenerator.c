@@ -493,6 +493,9 @@ static const char* words[] =
     "height ",
     "end ",
     "of world"
+    "Sea",
+    "Beach",
+    "Tea",
 };
 
 #define WORD_COUNT \

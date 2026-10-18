@@ -52,8 +52,6 @@ Basic syntax:
 
 Comments right now not supported.
 
-``` text
-
 1A - int
 flt - float
 lng - long
@@ -67,5 +65,3 @@ nw::out << "Hey! << nw::endl;
 
 nw::cin >> var
 nw::line(nw::cin, var) // type all line
-
-```

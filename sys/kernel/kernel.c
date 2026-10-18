@@ -14,6 +14,8 @@
 #include "Apps/fileStats/filestats.h"
 #include "Apps/baseconverter/baseconverter.h"
 
+#include "network/net.h"
+
 #include "nwo_loader.h"
 
 /*
@@ -35,7 +37,8 @@ void nwo_run(const char* filename);
 void read_line(char* buffer, int max);
 
 unsigned int rand_simple(void);
-
+void set_p_shell(void);
+void print_shell_p(void);
 void fs_load(void);
 void fs_save_directory(void);
 int random_range(int min, int max);
@@ -122,6 +125,8 @@ static unsigned char base_color = COLOR_LIGHT_GRAY;
 
 void fs_load(void);
 void fs_save_directory(void);
+
+int shell_p = 0;
 
 unsigned char rtc_read(unsigned char reg);
 unsigned char bcd_to_bin(unsigned char value);
@@ -1270,7 +1275,7 @@ void dateCr()
 {
     set_color(COLOR_WHITE);
     print("2026.08.27\n");
-    print("v.1.4.2\n");
+    print("v.1.4.1\n");
     set_color(base_color);
 }
 
@@ -1307,7 +1312,7 @@ void nwfetch(void)
     print_success("   NwOS\n");
 
     print("      |  \\|  |      ");
-    print_success("   Version: 1.4.2\n");
+    print_success("   Version: 1.4.1\n");
 
     print("      | |\\| |      ");
     print_success("   Arch: x86\n");
@@ -1744,7 +1749,6 @@ void games_menu(void)
 }
 
 void apps_list() {
-    clear();
     print("                 o-------------------------o\n");
     print("                 |                         |\n");
     print("                 |        1.Filestats      |\n");
@@ -1910,6 +1914,31 @@ int fs_read_text(
     return 1;
 }
 
+void startingNWOS() {
+    random_init();
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("RANDOM\n");
+    fs_load();
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("FILESYSTEM\n");
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("KEYBOARD\n");
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("COMPILER\n");
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("SYSTEM\n");
+}
+
 int fs_read_binary(
     const char* name,
     unsigned char* buffer,
@@ -1995,6 +2024,230 @@ void t_colorsetter(void)
     }
 }
 
+// shell
+
+typedef struct
+{
+    const char* name;
+    void (*run)(void);
+    void (*run_arg)(const char* args);
+    const char* help;
+} Command;
+
+#define CMD(name, fn, help)     { name, fn, 0, help }
+#define CMD_ARG(name, fn, help) { name, 0, fn, help }
+
+static void cmd_help(void);
+static void cmd_about(void);
+static void cmd_echo(const char* args);
+static void cmd_write(const char* args);
+static void cmd_panic_safe(void);
+static void cmd_panic_fatal(void);
+
+static const Command commands[] =
+{
+    CMD    ("help",         cmd_help,        "help   - show commands"),
+    CMD_ARG("echo",         cmd_echo,        "echo <text> - print text"),
+    CMD    ("clear",        clear,           "clear  - clear screen"),
+    CMD    ("about",        cmd_about,       "about  - OS information"),
+    CMD    ("nwfetch",      nwfetch,         "nwfetch - system info"),
+    CMD    ("games",        games_menu,      "games  - list games"),
+    CMD    ("calc",         Calc,            "calc   - Calculator"),
+    CMD    ("color",        t_colorsetter,   "color  - change color"),
+    CMD    ("fs",           fs_list,         "fs      - list files"),
+    CMD    ("format",       fs_format,       "format  - erase all files"),
+    CMD    ("panic safe",   cmd_panic_safe,  "panic safe|fatal - test kernel panic"),
+    CMD    ("panic fatal",  cmd_panic_fatal, 0),
+    CMD_ARG("create",       fs_create,       "create <file> - create file"),
+    CMD_ARG("read",         fs_read,         "read <file> - read file"),
+    CMD_ARG("write",        cmd_write,       "write <file> <text> - write text to file"),
+    CMD_ARG("edit",         redactor,        "edit <file> - edit a file"),
+    CMD_ARG("delete",       fs_delete,       "delete <file> - delete file"),
+    CMD    ("reboot",       reboot,          "reboot - restart NwOS"),
+    CMD_ARG("run",          nwo_run,         "run <file.nwo> - run NWO application"),
+    CMD    ("apps",         apps_list,       "apps - List of apps"),
+    CMD    ("generate num", generate_num,    "generate num - generate num"),
+    CMD_ARG("hexview",      app_hexview,     "hexview <file> - hex byte map"),
+    CMD_ARG("nwocheck",     app_nwo_info,    "nwocheck <file> - check OPcodes"),
+    CMD    ("random word",  say,             "random word - generate word"),
+    CMD    ("chat",         chat,            "chat - chat with computer"),
+    CMD    ("change invite",set_p_shell,     "change invite - Change invite ('NwOS>')"),
+
+    /* network */
+    CMD_ARG("ping",         net_ping,        "ping <host or IP> - e.g. ping www.google.com"),
+    CMD    ("net",          net_info,        "net    - network status (MAC, IP, link)"),
+    CMD    ("lspci",        net_lspci,       "lspci  - list PCI devices"),
+
+    /* hidden (not shown by 'help') */
+    CMD    ("datec",        dateCr,          0),
+    CMD    ("games old",    games,           0),
+    CMD    ("testH",        testH,           0),
+    CMD    ("guessh",       game_guessh,     0),
+    CMD    ("game coin",    game_coin,       0),
+    CMD    ("game dice",    game_dice,       0),
+    CMD    ("game highlow", game_higher_lower, 0),
+    CMD    ("game math",    game_math,       0),
+    CMD    ("word",         game_word,       0),
+    CMD    ("guess",        game_guess,      0),
+    CMD    ("rps",          game_rps,        0),
+    CMD    ("hangman",      game_hangman,    0),
+    CMD    ("tictactoe",    game_tictactoe,  0),
+};
+
+#define COMMAND_COUNT (sizeof(commands) / sizeof(commands[0]))
+
+static void cmd_help(void)
+{
+    set_color(COLOR_GREEN);
+    print("Commands:\n");
+
+    for (unsigned int i = 0; i < COMMAND_COUNT; i++)
+    {
+        if (commands[i].help)
+        {
+            print("  ");
+            print(commands[i].help);
+            putchar_os('\n');
+        }
+    }
+
+    set_color(base_color);
+}
+
+static void cmd_about(void)
+{
+    set_color(COLOR_WHITE);
+    print("====NwOS 1.4.3====\n");
+    print("Name: NwOS\n");
+    print("Version: v1.4.3\n");
+    print("Arch: x86-64\n");
+    print("Display: VGA text mode\n");
+    print("PS/2 keyboard\n");
+    print("Network: e1000 (ping)\n");
+    print("================\n");
+    set_color(base_color);
+}
+
+static void cmd_echo(const char* args)
+{
+    print(args);
+    putchar_os('\n');
+}
+
+static void cmd_write(const char* args)
+{
+    char name[128];
+    int i = 0;
+
+    while (args[i] != ' ' && args[i] != '\0' && i < 127)
+    {
+        name[i] = args[i];
+        i++;
+    }
+
+    name[i] = '\0';
+
+    if (args[i] != ' ')
+    {
+        print_error("Usage: write <file> <text>\n");
+        return;
+    }
+
+    fs_write(name, args + i + 1);
+}
+
+static void cmd_panic_safe(void)
+{
+    KPANIC_SAFE("Manual test panic (safe)");
+}
+
+static void cmd_panic_fatal(void)
+{
+    KPANIC_FATAL("Manual test panic (fatal)");
+}
+
+static int command_name_length(const char* s)
+{
+    int n = 0;
+
+    while (s[n] != '\0')
+        n++;
+
+    return n;
+}
+
+static void shell_execute(const char* command)
+{
+    if (command[0] == '\0')
+        return;
+
+    for (unsigned int i = 0; i < COMMAND_COUNT; i++)
+    {
+        const Command* c = &commands[i];
+
+        if (c->run != 0)
+        {
+            /* exact-word command */
+            if (strcmp(command, c->name) == 0)
+            {
+                c->run();
+                return;
+            }
+
+            continue;
+        }
+
+        /* command that takes text: "<name> <args>" */
+        int n = command_name_length(c->name);
+
+        if (strncmp(command, c->name, n) != 0)
+            continue;
+
+        if (command[n] == ' ')
+        {
+            c->run_arg(command + n + 1);
+            return;
+        }
+
+        if (command[n] == '\0')
+        {
+            print_error("Usage: ");
+            print_error(c->help ? c->help : c->name);
+            putchar_os('\n');
+            return;
+        }
+    }
+
+    print_error("Unknown command. Type 'help'.\n");
+}
+
+void set_p_shell(void)
+{
+    int choose_p = 0;
+    print("1.Default (NwOS> )\n2.D disk (D:/>)\n");
+    print("|\n");
+    print("----> ");
+    choose_p = read_int();
+    if (choose_p == 1) {
+        print_success("Set to 'Default'\n");
+        shell_p = 0;
+    } else if (choose_p == 2) {
+        print_success("Set to 'D disk'\n");
+        shell_p = 1;
+    } else {
+        print_error("Invalid choose!\n");
+    }
+}
+
+void print_shell_p(void)
+{
+    if (shell_p == 0) {
+        print("NwOS> ");
+    } else {
+        print("D:/> ");
+    }
+}
+
 void shell(void)
 {
     char command[128];
@@ -2002,232 +2255,12 @@ void shell(void)
     while (1)
     {
         set_color(COLOR_CYAN);
-        print("NwOS> ");
+        print_shell_p();
         set_color(base_color);
 
         read_line(command, 128);
 
-        if (strcmp(command, "help") == 0)
-        {
-            set_color(COLOR_GREEN);
-            print("Commands:\n");
-            print("  help   - show commands\n");
-            print("  echo   - print text\n");
-            print("  clear  - clear screen\n");
-            print("  about  - OS information\n");
-            print("  nwfetch - system info\n");
-            print("  games  - list games\n");
-            print("  calc   - Calculator\n");
-            print("  color  - change color\n");
-            print("  fs      - list files\n");
-            print("  format  - erase all files\n");
-            print("  panic safe|fatal - test kernel panic\n");
-            print("  create <file> - create file\n");
-            print("  read <file> - read file\n");
-            print("  edit <file> - edit a file\n");
-            print("  delete <file> - delete file\n");
-            print("  reboot - restart NwOS\n");
-            print("  run <file.nwo> - run NWO application\n");
-            print("  apps - List of apps\n");
-            print("  generate num - generate num\n");
-            print("  hexview - hex byte map\n");
-            print("  nwocheck - check OPcodes\n");
-            print("  random word - generate word\n");
-            print("  chat - chat with computer\n");
-            set_color(base_color);
-        }
-
-        else if (strcmp(command, "clear") == 0)
-        {
-            clear();
-        }
-
-        else if (strcmp(command, "about") == 0)
-        {
-            set_color(COLOR_WHITE);
-            print("====NwOS 1.4.2====\n");
-            print("Name: NwOS\n");
-            print("Version: v1.4.2\n");
-            print("Arch: x86\n");
-            print("Display: VGA text mode\n");
-            print("PS/2 keyboard\n");
-            print("================\n");
-            set_color(base_color);
-        }
-
-        else if (starts_with(command, "echo "))
-        {
-            print(command + 5);
-            putchar_os('\n');
-        }
-
-        else if (strcmp(command, "games") == 0)
-        {
-            games_menu();
-        }
-        
-        else if (strcmp(command, "nwfetch") == 0)
-        {
-            nwfetch();
-        }
-
-        else if (strcmp(command, "datec") == 0)
-        {
-            dateCr();
-        }
-        else if (strcmp(command, "games old") == 0)
-        {
-            games();
-        }
-
-        else if (strcmp(command, "testH") == 0)
-        {
-            testH();
-        }
-        else if (strcmp(command, "fs") == 0)
-        {
-            fs_list();
-        }
-        else if (strncmp(command, "run ", 4) == 0)
-        {
-            nwo_run(command + 4);
-        }
-        else if (strcmp(command, "format") == 0)
-        {
-            fs_format();
-        }
-        else if (strcmp(command, "panic safe") == 0)
-        {
-            KPANIC_SAFE("Manual test panic (safe)");
-        }
-        else if (strcmp(command, "panic fatal") == 0)
-        {
-            KPANIC_FATAL("Manual test panic (fatal)");
-        }
-        else if (strncmp(command, "create ", 7) == 0)
-        {
-            fs_create(command + 7);
-        }
-        else if (strncmp(command, "read ", 5) == 0)
-        {
-            fs_read(command + 5);
-        }
-        else if (strncmp(command, "delete ", 7) == 0)
-        {
-            fs_delete(command + 7);
-        }
-        else if (strncmp(command, "hexview ", 8) == 0)
-        {
-            app_hexview(command + 8);
-        }
-        else if (strncmp(command, "nwocheck ", 9) == 0)
-        {
-            app_nwo_info(command + 9);
-        }
-        else if (strncmp(command, "write ", 6) == 0)
-        {
-            char* separator = command + 6;
-
-            while (*separator != ' ' &&
-                    *separator != '\0')
-            {
-                separator++;
-            }
-
-            if (*separator == '\0')
-            {
-                print_error("Usage: write <file> <text>\n");
-            }
-            else
-            {
-                *separator = '\0';
-
-                fs_write(command + 6,
-                        separator + 1);
-            }
-        }
-        else if (strcmp(command, "calc") == 0)
-        {
-            Calc();
-        }
-        else if (strcmp(command, "guessh") == 0)
-        {
-            game_guessh();
-        }
-        else if (strncmp(command, "edit ", 5) == 0)
-        {
-            redactor(command + 5);
-        }
-        else if (strcmp(command, "color") == 0)
-        {
-            t_colorsetter();
-        }
-        else if (strcmp(command, "reboot") == 0)
-        {
-            reboot();
-        }
-        else if (strcmp(command, "game coin") == 0)
-        {
-            game_coin();
-        }
-        else if (strcmp(command, "game dice") == 0)
-        {
-            game_dice();
-        }
-        else if (strcmp(command, "generate num") == 0)
-        {
-            generate_num();
-        }
-        else if (strcmp(command, "apps") == 0)
-        {
-            apps_list();
-        }
-        else if (strcmp(command, "game highlow") == 0)
-        {
-            game_higher_lower();
-        }
-        else if (strcmp(command, "game math") == 0)
-        {
-            game_math();
-        }
-        else if (strcmp(command, "word") == 0)
-        {
-            game_word();
-        }
-
-        else if (strcmp(command, "guess") == 0)
-        {
-            game_guess();
-        }
-        else if (strcmp(command, "rps") == 0)
-        {
-            game_rps();
-        }
-        else if (strcmp(command, "hangman") == 0)
-        {
-            game_hangman();
-        }
-        else if (strcmp(command, "tictactoe") == 0)
-        {
-            game_tictactoe();
-        }
-        else if (strcmp(command, "random word") == 0)
-        {
-            say();
-        }
-        else if (strcmp(command, "chat") == 0)
-        {
-            chat();
-        }
-
-        else if (command[0] == '\0')
-        {
-        }
-
-        else
-        {
-            print_error("Unknown command. Type 'help'.\n");
-        }
+        shell_execute(command);
     }
 }
 
@@ -2236,29 +2269,23 @@ void kernel_main(void)
     clear();
 
     print("CLEARING...\n");
+    startingNWOS();
+    print("Starting NwOS...\n");
+    // waiting
+    int wait = 0;
+    while (wait < 200000000) {
+        wait++;
+    }
 
-    random_init();
-    set_color(COLOR_GREEN);
-    print("[OK] ");
-    set_color(base_color);
-    print("RANDOM\n");
-    fs_load();
-    set_color(COLOR_GREEN);
-    print("[OK] ");
-    set_color(base_color);
-    print("FILESYSTEM\n");
-    set_color(COLOR_GREEN);
-    print("[OK] ");
-    set_color(base_color);
-    print("KEYBOARD\n");
-    set_color(COLOR_GREEN);
-    print("[OK] ");
-    set_color(base_color);
-    print("COMPILER\n");
+    clear();
 
     print("================================\n");
-    print("        Welcome to NwOS 1.4.2\n");
-    print("================================\n");
+    print("        Welcome to NwOS 1.4.3\n");
+    print("================================\n\n");
+    set_color(COLOR_LIGHT_GREEN);
+    print("copyright (c) User014015  2026\n\n");
+    set_color(COLOR_LIGHT_GRAY);
+    print("Github: https://github.com/User014015/NwOS"); print("\n");
     print("Type 'help' for commands.\n\n");
     set_color(COLOR_GREEN);
     print("================");

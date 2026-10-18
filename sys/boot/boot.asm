@@ -78,13 +78,31 @@ check_edd:
     mov ds, ax
     mov es, ax
 
+read_loop:
+    mov ax, [sectors_left]
+    test ax, ax
+    jz read_done
+    cmp ax, 64
+    jbe read_go
+    mov ax, 64
+read_go:
+    mov [chunk], ax
+    mov [disk_address_packet + 2], ax
+
     mov si, disk_address_packet
     mov dl, [boot_drive]
-
     mov ah, 0x42
     int 0x13
-
     jc disk_error
+
+    movzx eax, word [chunk]
+    sub [sectors_left], ax
+    add [disk_address_packet + 8], eax      ; next LBA
+    shl ax, 5                               ; sectors * 512 / 16
+    add [disk_address_packet + 6], ax       ; next segment
+    jmp read_loop
+    
+read_done:
 
     mov ah, 0x0E
     mov al, '5'
@@ -177,6 +195,11 @@ bits 16
 boot_drive:
     db 0
 
+sectors_left:
+    dw 242
+chunk:
+    dw 0
+
 loading_message:
     db "Loading NwOS kernel...", 13, 10, 0
 
@@ -191,7 +214,7 @@ disk_address_packet:
     db 0x10
     db 0x00
 
-    dw 106
+    dw 90
 
     dw 0x0000  
     dw 0x1000  

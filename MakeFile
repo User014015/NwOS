@@ -1,0 +1,69 @@
+# NwOS 64-bit build (Linux: clang + nasm + ld.lld + qemu-system-x86_64)
+#
+# Adjust SRC_DIRS if your tree differs. Everything under them that ends in
+# .c is compiled into the kernel (the host-side compiler/ folder is NOT).
+
+CC      := clang
+AS      := nasm
+LD      := ld.lld
+OBJCOPY := llvm-objcopy
+QEMU    := qemu-system-x86_64
+
+SRC_DIRS := sys drivers
+SRC      := $(shell find $(SRC_DIRS) -name '*.c')
+BUILD    := build
+OBJ      := $(patsubst %.c,$(BUILD)/%.o,$(SRC))
+
+IMG      := NwOS.img
+
+# boot.asm reads this many sectors (the `dw 90` in disk_address_packet)
+BOOT_SECTORS := 242
+
+CFLAGS := --target=x86_64-unknown-none-elf -m64 \
+          -ffreestanding -fno-builtin -fno-stack-protector \
+          -fno-pic -fno-pie -fno-asynchronous-unwind-tables \
+          -mno-red-zone -mcmodel=small \
+          -ffunction-sections -fdata-sections \
+          -Os -Wall -Wextra
+
+# all: $(IMG)
+
+$(BUILD)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/kernel_entry.o: sys/kernel/kernel_entry.asm
+	@mkdir -p $(BUILD)
+	$(AS) -f elf64 $< -o $@
+
+	$(LD) -nostdlib -static --gc-sections -z noexecstack -T linker.ld -o $@ $(BUILD)/kernel_entry.o $(OBJ)
+	$(LD) -nostdlib -static -z noexecstack -T linker.ld -o $@ $(BUILD)/kernel_entry.o $(OBJ)
+
+$(BUILD)/kernel.bin: $(BUILD)/kernel.elf
+	$(OBJCOPY) -O binary $< $@
+	@size=$$(stat -c%s $@); limit=$$(( $(BOOT_SECTORS) * 512 )); \
+	echo "kernel.bin: $$size bytes (limit $$limit)"; \
+	if [ $$size -gt $$limit ]; then \
+	  echo "ERROR: kernel is larger than the $(BOOT_SECTORS) sectors boot.asm loads."; \
+	  echo "       Raise 'dw 90' in boot.asm (max 127) and BOOT_SECTORS here."; \
+	  rm -f $@; exit 1; \
+	fi
+
+$(BUILD)/boot.bin: sys/boot/boot.asm
+	@mkdir -p $(BUILD)
+	$(AS) -f bin $< -o $@
+
+# Existing image is updated in place so files stored in the NwOS
+# filesystem (LBA 200+) survive a rebuild.
+$(IMG): $(BUILD)/boot.bin $(BUILD)/kernel.bin
+	@[ -f $@ ] || dd if=/dev/zero of=$@ bs=512 count=2048 status=none
+	dd if=$(BUILD)/boot.bin   of=$@ bs=512 count=1 conv=notrunc status=none
+	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=1  conv=notrunc status=none
+
+run: $(IMG)
+	$(QEMU) -drive format=raw,file=$(IMG),if=ide
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all run clean

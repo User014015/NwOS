@@ -1,49 +1,56 @@
+/* NwOS 64-bit kernel linker script
+ *
+ * The kernel is loaded flat at 0x10000 by boot.asm and identity-mapped
+ * (virtual address == physical address).  .bss, the page tables and the
+ * stack are NOLOAD so they do not end up inside kernel.bin.
+ */
+
+OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(_start)
 
 SECTIONS
 {
-    /*
-     * Kernel load address. Must match boot.asm's disk read
-     * destination and its protected-mode jump target exactly.
-     * Moved from 0x1000 to 0x10000: at 0x1000, the kernel had
-     * only ~54 sectors of room before colliding with the boot
-     * sector's own code at 0x7C00. kernel.bin outgrew that
-     * (58 sectors needed as of this fix), so the load address
-     * moved to somewhere with real headroom instead.
-     */
     . = 0x10000;
 
-    .text :
+    .text : ALIGN(16)
     {
-        *(.text.start)
-        *(.text*)
+        KEEP(*(.text.start))
+        *(.text .text.*)
     }
 
-    .rodata :
+    .rodata : ALIGN(16)
     {
-        *(.rodata*)
+        *(.rodata .rodata.*)
     }
 
-    .data :
+    .data : ALIGN(16)
     {
-        *(.data*)
+        *(.data .data.*)
     }
 
-    /*
-     * .bss is NOLOAD: it has no file content by definition (it's
-     * all zero), so it must NOT be baked into kernel.bin. Without
-     * NOLOAD, objcopy -O binary pads the raw binary out by the
-     * full size of .bss - tens of KB once static buffers like the
-     * terminal scrollback exist - silently pushing the kernel
-     * past however many sectors boot.asm loads. kernel_entry.asm
-     * zeroes this region manually at startup using the symbols
-     * below, since nothing loads it from disk anymore.
-     */
-    .bss (NOLOAD) :
+    .bss (NOLOAD) : ALIGN(16)
     {
         __bss_start = .;
-        *(.bss*)
+        *(.bss .bss.*)
         *(COMMON)
+        . = ALIGN(16);
         __bss_end = .;
+    }
+
+    .pagetables (NOLOAD) : ALIGN(4096)
+    {
+        *(.pagetables)
+    }
+
+    .stack (NOLOAD) : ALIGN(16)
+    {
+        *(.stack)
+    }
+
+    /DISCARD/ :
+    {
+        *(.comment)
+        *(.note .note.*)
+        *(.eh_frame .eh_frame_hdr)
     }
 }

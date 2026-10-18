@@ -1,9 +1,9 @@
 #include "nwc_kernel.h"
 #include "nwc_runtime.h"
 
-#include "lexer.h"
-#include "parser.h"
-#include "codegen.h"
+#include "lexer/lexer.h"
+#include "parser/parser.h"
+#include "codegen/codegen.h"
 
 extern void print(const char* text);
 extern void print_int(int number);
