@@ -63,6 +63,18 @@ Run,
 
 type command help for help
 
+## Security notice
+
+NwOS is a **hobby operating system**. It is **not designed for production use**.
+
+Network stack:
+- No firewall
+- No rate limiting
+- No IPv6
+- Basic IPv4 only (ARP, ICMP, UDP, DNS)
+
+**Do not expose NwOS to untrusted networks.** Use only in QEMU or isolated lab environments.
+
 ## NwC
 
 Nwc - its a compiler that works in NwOS
