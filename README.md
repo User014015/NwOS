@@ -27,6 +27,7 @@ A small x86 operating system written in C and NASM.
 - Save files (disk)
 - Kernel panic Safe/Fatal
 - Compiler
+- Network
 
 ## Compiler
 
