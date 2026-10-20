@@ -1,41 +1,50 @@
-; ============================================================
-; NwOS kernel entry - 32-bit protected mode -> 64-bit long mode
-;
-; boot.asm (unchanged) loads the kernel to 0x10000, switches to
-; 32-bit protected mode and jumps here.  This stub:
-;   1. checks that the CPU supports long mode
-;   2. builds identity-mapped page tables (first 4 GiB, 2 MiB pages)
-;   3. enables PAE + EFER.LME + paging, loads a 64-bit GDT
-;   4. far-jumps into 64-bit code, enables SSE, zeroes .bss
-;   5. calls kernel_main() with a 16-byte aligned stack
-;
-; Assemble with:  nasm -f elf64 kernel_entry.asm
-; ============================================================
+section .multiboot_header progbits alloc noexec nowrite align=8
+align 8
+header_start:
+    dd 0xE85250D6
+    dd 0
+    dd header_end - header_start
+    dd 0x100000000 - (0xE85250D6 + 0 + (header_end - header_start))
+
+    align 8
+    dw 5
+    dw 0
+    dd 24
+    dd 640
+    dd 400
+    dd 32
+
+    align 8
+    dw 0
+    dw 0
+    dd 8
+header_end:
 
 global _start
 extern kernel_main
 extern __bss_start
 extern __bss_end
 
-PT_TOTAL_SIZE   equ 4096 * 6        ; PML4 + PDPT + 4 page directories
+PT_TOTAL_SIZE   equ 4096 * 6
 PTE_PRESENT_RW  equ 0x03
-PDE_2M_RW       equ 0x83            ; present | writable | 2 MiB page
-PDE_UNCACHED    equ 0x10            ; PCD (used for the MMIO hole)
-MMIO_FIRST_PDE  equ 1536            ; 1536 * 2 MiB = 0xC0000000
+PDE_2M_RW       equ 0x83
+PDE_UNCACHED    equ 0x10
+MMIO_FIRST_PDE  equ 1536
 
 section .text.start progbits alloc exec nowrite align=16
 
-; ------------------------------------------------------------
-; 32-bit part
-; ------------------------------------------------------------
 bits 32
 
+section .data
+global multiboot_info_ptr
+multiboot_info_ptr: dd 0
+
 _start:
+    mov [multiboot_info_ptr], ebx
     cli
     cld
-    mov esp, 0x90000                ; temporary stack, 64-bit stack set later
+    mov esp, 0x90000
 
-    ; ---- is CPUID available? (can we flip EFLAGS.ID, bit 21) ----
     pushfd
     pop eax
     mov ecx, eax
@@ -49,7 +58,6 @@ _start:
     xor eax, ecx
     jz .no_long_mode
 
-    ; ---- does the CPU support long mode? ----
     mov eax, 0x80000000
     cpuid
     cmp eax, 0x80000001
@@ -57,25 +65,22 @@ _start:
 
     mov eax, 0x80000001
     cpuid
-    test edx, 1 << 29               ; LM bit
+    test edx, 1 << 29
     jz .no_long_mode
 
-    ; ---- clear the page-table area ----
     mov edi, pml4
     mov ecx, PT_TOTAL_SIZE / 4
     xor eax, eax
     rep stosd
 
-    ; ---- PML4[0] -> PDPT ----
     mov eax, pdpt
     or  eax, PTE_PRESENT_RW
     mov [pml4], eax
 
-    ; ---- PDPT[0..3] -> PD0..PD3 ----
     xor ecx, ecx
 .fill_pdpt:
     mov eax, ecx
-    shl eax, 12                     ; * 4096
+    shl eax, 12
     add eax, pd
     or  eax, PTE_PRESENT_RW
     mov [pdpt + ecx * 8], eax
@@ -83,13 +88,10 @@ _start:
     cmp ecx, 4
     jne .fill_pdpt
 
-    ; ---- 2048 x 2 MiB pages = identity map of 0 .. 4 GiB ----
-    ; Everything from 0xC0000000 up is mapped uncached: that is where
-    ; PCI BARs / framebuffers / NIC registers live.
     xor ecx, ecx
 .fill_pd:
     mov eax, ecx
-    shl eax, 21                     ; * 2 MiB
+    shl eax, 21
     or  eax, PDE_2M_RW
     cmp ecx, MMIO_FIRST_PDE
     jb .cacheable
@@ -100,33 +102,32 @@ _start:
     cmp ecx, 2048
     jne .fill_pd
 
-    ; ---- enable long mode ----
     mov eax, pml4
     mov cr3, eax
 
     mov eax, cr4
-    or  eax, 1 << 5                 ; PAE
+    or  eax, 1 << 5
     mov cr4, eax
 
-    mov ecx, 0xC0000080             ; IA32_EFER
+    mov ecx, 0xC0000080
     rdmsr
-    or  eax, 1 << 8                 ; LME
+    or  eax, 1 << 8
     wrmsr
 
     lgdt [gdt64_ptr]
 
     mov eax, cr0
-    or  eax, 1 << 31                ; PG  (PE is already set)
+    or  eax, 1 << 31
     mov cr0, eax
 
-    push dword 0x08                 ; 64-bit code selector
+    push dword 0x08
     push dword long_mode_entry
     retf
 
 .no_long_mode:
-    mov edi, 0xB8000 + 160 * 4      ; row 4 of the text screen
+    mov edi, 0xB8000 + 160 * 4
     mov esi, msg_no_long_mode
-    mov ah, 0x4F                    ; white on red
+    mov ah, 0x4F
 .print:
     lodsb
     test al, al

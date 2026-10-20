@@ -23,6 +23,8 @@
     --green-hover: #2ea043;
     --warn-bg:     #3a2a10;
     --warn-fg:     #d29922;
+    --beta:        #8957e5;
+    --beta-hover:  #a371f7;
     --radius:      8px;
     --max-width:   760px;
 }
@@ -236,6 +238,53 @@ ul.features li::before {
     color: var(--warn-fg);
 }
 
+.tag-beta {
+    background: rgba(137, 87, 229, 0.2);
+    color: var(--beta-hover);
+}
+
+/* ---------- Download channels ---------- */
+
+.channels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.channel {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.25rem 1.5rem;
+}
+
+.channel h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+.channel-version {
+    margin-bottom: 0.5rem;
+    font-size: 1.15rem;
+}
+
+.channel .button {
+    margin-top: 0.5rem;
+}
+
+.channel-beta {
+    border-color: rgba(137, 87, 229, 0.4);
+}
+
+.run-hint {
+    margin-top: 0.5rem;
+}
+
+li.beta-feature::before {
+    color: var(--beta-hover);
+}
+
 /* ---------- Buttons ---------- */
 
 .button {
@@ -268,9 +317,19 @@ ul.features li::before {
     background: var(--green-hover);
 }
 
-.button-primary:disabled {
+.button:disabled {
     opacity: 0.6;
     cursor: wait;
+}
+
+.button-beta {
+    background: var(--beta);
+    color: #fff;
+    border-color: rgba(240, 246, 252, 0.1);
+}
+
+.button-beta:hover {
+    background: var(--beta-hover);
 }
 
 .button-secondary {
@@ -312,7 +371,14 @@ footer a:hover {
         padding: 3rem 1rem 2rem;
     }
 
-    header h1 {
+header .logo {
+    display: block;
+    margin: 0 auto 1rem;
+    border-radius: 20%;
+    box-shadow: 0 0 0 1px var(--border);
+}
+
+header h1 {
         font-size: 2.2rem;
     }
 
@@ -326,6 +392,10 @@ footer a:hover {
 
     section h2 {
         font-size: 1.4rem;
+    }
+
+    .channels {
+        grid-template-columns: 1fr;
     }
 
     #versions-list li a {

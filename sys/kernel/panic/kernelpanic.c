@@ -1,77 +1,190 @@
 #include "../../../include/kernelpanic.h"
 
-extern void print(const char* text);
+#include "../kernel.h"
+#include "../../../drivers/keyboard.h"
+
+void reboot(void);
+
+// Подключаем наш фреймбуфер (поправь путь, если нужно)
+// Предполагается, что fb.h лежит в sys/kernel/fb.h
+#include "../fb.h" 
+
 extern void print_int(int number);
 extern void putchar_os(char c);
-extern void set_color(unsigned char color);
-extern void set_base_color(unsigned char color);
-extern void clear(void);
 
-#define PANIC_COLOR_LIGHT_GRAY 7
-#define PANIC_COLOR_LIGHT_RED  12
-#define PANIC_COLOR_YELLOW     14
-#define PANIC_COLOR_WHITE      15
+#define COLOR_LIGHT_RED  12
+#define COLOR_YELLOW     14
+#define COLOR_WHITE      15
+#define COLOR_CYAN       11
 
-static void panic_print_location(const char* file, int line)
-{
-    print("  Location: ");
-    print(file);
-    print(":");
-    print_int(line);
-    putchar_os('\n');
+// Цвет 0x1F = Белый текст (F) на Синим фоне (1)
+#define PANIC_COLOR      0x1F 
+#define PANIC_BG         0x1F
+
+// Внутренние координаты для паники (80x50)
+static int p_x = 0;
+static int p_y = 0;
+
+// Очистка экрана синим цветом (напрямую через фреймбуфер)
+static void panic_clear(void) {
+    p_x = 0;
+    p_y = 0;
+    
+    // Если фреймбуфер доступен, заливаем 80x50
+    if (fb_is_available()) {
+        for (int y = 0; y < 50; y++) {
+            for (int x = 0; x < 80; x++) {
+                fb_draw_char(x, y, ' ', PANIC_BG);
+            }
+        }
+    }
 }
 
-static void panic_safe(const char* message, const char* file, int line)
-{
-    set_color(PANIC_COLOR_YELLOW);
-    print("\n[!] KERNEL WARNING\n");
-    print("  ");
-    print(message);
-    putchar_os('\n');
-
-    panic_print_location(file, line);
-
-    print("  Continuing, but this may be unstable.\n\n");
-
-    set_base_color(PANIC_COLOR_LIGHT_GRAY);
+// Прямой вывод символа без буферов терминала
+static void panic_putc(char c) {
+    if (c == '\n') {
+        p_x = 0;
+        p_y++;
+        return;
+    }
+    
+    if (fb_is_available()) {
+        fb_draw_char(p_x, p_y, c, PANIC_COLOR);
+    }
+    
+    p_x++;
+    if (p_x >= 80) {
+        p_x = 0;
+        p_y++;
+    }
 }
 
-static void panic_fatal(const char* message, const char* file, int line)
+// Прямой вывод строки
+static void panic_puts(const char* s) {
+    while (*s) {
+        panic_putc(*s++);
+    }
+}
+
+// Вывод Hex-числа
+static void panic_hex(unsigned int v) {
+    const char* hex = "0123456789ABCDEF";
+    panic_puts("0x");
+    for (int i = 28; i >= 0; i -= 4) {
+        panic_putc(hex[(v >> i) & 0xF]);
+    }
+}
+
+// Вывод числа (упрощенный)
+static void panic_int(int v) {
+    char buf[12];
+    int i = 0;
+    if (v == 0) { panic_putc('0'); return; }
+    while (v > 0) {
+        buf[i++] = '0' + (v % 10);
+        v /= 10;
+    }
+    while (i > 0) panic_putc(buf[--i]);
+}
+
+// Вспомогательная функция для смены цвета прямо в панике
+static void set_panic_color(unsigned char fg, unsigned char bg) {
+    // В fb_draw_char цвет передается как (bg << 4) | fg
+    // Мы не можем поменять глобальный цвет, но можем менять локальный.
+    // Для простоты в этой версии мы просто используем один общий цвет.
+    // Если нужен разноцветный вывод, можно добавить глобальную переменную для цвета.
+    (void)fg; (void)bg;
+}
+
+static void panic_safe(const char* message, unsigned int code, const char* file, int line)
+{
+    // Обычный вывод (в историю, без заливки экрана)
+    // ... (оставляем как было, используя extern print) ...
+}
+
+static void panic_fatal(const char* message, unsigned int code, const char* file, int line)
 {
     __asm__ volatile ("cli");
 
-    clear();
-    set_color(PANIC_COLOR_WHITE);
+    panic_clear();
 
-    print("================================================================================\n");
-    print("                              !!! KERNEL PANIC !!!\n");
-    print("================================================================================\n\n");
+    // Верхняя рамка
+    panic_puts("\n\n");
+    panic_puts("  +============================================================================+\n");
+    panic_puts("  |                                                                            |\n");
+    panic_puts("  |                          !!! KERNEL PANIC !!!                              |\n");
+    panic_puts("  |                                                                            |\n");
+    panic_puts("  +============================================================================+\n\n");
 
-    set_color(PANIC_COLOR_LIGHT_RED);
-    print("  ");
-    print(message);
-    putchar_os('\n');
+    // Сообщение об ошибке
+    panic_puts("   ERROR: ");
+    panic_puts(message);
+    panic_puts("\n\n");
 
-    set_color(PANIC_COLOR_WHITE);
-    panic_print_location(file, line);
+    // Код ошибки
+    panic_puts("   CODE:  ");
+    panic_hex(code);
+    panic_puts("\n\n");
 
-    print("\n  The system has halted to avoid further damage.\n");
-    print("  Please restart the machine manually.\n");
+    // Место
+    panic_puts("   AT:    ");
+    panic_puts(file);
+    panic_puts(":");
+    panic_int(line);
+    panic_puts("\n\n");
+
+    // Нижняя рамка
+    panic_puts("  +============================================================================+\n\n");
+    
+    // Если код ERR_DEATH, выводим пасхалку
+    if (code == 0x01111111) {
+        // Временно меняем цвет для пасхалки (если нужно)
+        panic_puts("   * You just deleted the root filesystem. Why? *\n\n");
+    }
+
+    panic_puts("   The system has halted to prevent data corruption.\n");
+    panic_puts("   Please restart your computer or virtual machine.\n\n");
+
+    panic_puts("   * Press Ctrl+Alt+Del in QEMU to restart. *\n");
 
     for (;;)
+    {
+        int k = keyboard_getkey();
+        if (k == 'r' || k == 'R') {
+            reboot();
+        }
+        __asm__ volatile ("hlt");
+    }
+}
+
+void unknow_panic(unsigned int code) {
+    print("Unknow error\nMSG:");
+    print_int(DISK_DEATH);
+    while (1)
     {
         __asm__ volatile ("hlt");
     }
 }
 
-void kernel_panic(const char* message, const char* file, int line, PanicLevel level)
+void kernel_panic(const char* message, unsigned int code, const char* file, int line, PanicLevel level)
 {
     if (level == PANIC_FATAL)
     {
-        panic_fatal(message, file, line);
+        panic_fatal(message, code, file, line);
     }
     else
     {
-        panic_safe(message, file, line);
+        // Для safe паники используем обычный print (чтобы не ломать текущий вывод)
+        extern void set_color(unsigned char);
+        extern void set_base_color(unsigned char);
+        extern void print(const char*);
+        set_color(COLOR_YELLOW);
+        print("\n[!] KERNEL WARNING: ");
+        set_color(COLOR_WHITE);
+        print(message);
+        print(" (Code: ");
+        print_int(code); // Упрощенно, можно добавить hex в будущем
+        print(")\n");
+        set_base_color(7);
     }
 }

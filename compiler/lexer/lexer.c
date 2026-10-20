@@ -138,6 +138,9 @@ static Token read_identifier(Lexer* lexer)
     else if (strcmp(token.text, "continue") == 0)
         token.type = TOKEN_CONTINUE;
 
+    else if (strcmp(token.text, "rect") == 0)
+        token.type = TOKEN_RECT;
+
     else if (strcmp(token.text, "flt") == 0)
         token.type = TOKEN_FLOAT_TYPE;
 

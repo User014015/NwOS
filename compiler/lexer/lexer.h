@@ -40,6 +40,7 @@ typedef enum
     TOKEN_COLOR,
     TOKEN_GETKEY,
     TOKEN_CLEAR,
+    TOKEN_RECT,
     TOKEN_SCOPE,
 	
     TOKEN_LOW,             /* low */

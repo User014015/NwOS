@@ -117,6 +117,7 @@ typedef enum
     OP_COLOR        = 0x61,
     OP_GETKEY       = 0x62,
     OP_CLEAR        = 0x63,
+    OP_RECT         = 0x64,
     OP_FUNC_BEGIN   = 0x70,   /* u32 name, u8 ret_type */
     OP_FUNC_END     = 0x71,
     OP_CALL         = 0x72,   /* u32 name */
@@ -407,6 +408,16 @@ static void cg_call(Codegen* cg, ASTNode* node)
     if (strcmp(node->text, "nw::clear") == 0)
     {
         cg_emit_byte(cg, OP_CLEAR);
+        return;
+    }
+    if (strcmp(node->text, "nw::rect") == 0)
+    {
+        ASTNode* arg = node->child;
+        while (arg != NULL) {
+            cg_expression(cg, arg);
+            arg = arg->next;
+        }
+        cg_emit_byte(cg, OP_RECT);
         return;
     }
     cg_emit_byte(cg, OP_CALL);

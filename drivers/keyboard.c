@@ -11,6 +11,7 @@
 static int shift_left  = 0;
 static int shift_right = 0;
 static int caps_lock   = 0;
+static int super_pressed = 0;
 static unsigned char kb_inb(
     unsigned short port)
 {
@@ -113,9 +114,10 @@ static char shifted_keymap[128] =
 
 void keyboard_init(void)
 {
-    shift_left  = 0;
-    shift_right = 0;
-    caps_lock   = 0;
+    shift_left    = 0;
+    shift_right   = 0;
+    caps_lock     = 0;
+    super_pressed = 0;
 }
 
 static unsigned char keyboard_read_scancode(void)
@@ -140,50 +142,42 @@ int keyboard_getkey(void)
 
         if (scancode == 0xE0)
         {
-            unsigned char ext =
-                keyboard_read_scancode();
+            unsigned char ext = keyboard_read_scancode();
+            //super
+            if (ext == 0x5B) { super_pressed = 1; continue; }
+            if (ext == 0xDB) { super_pressed = 0; continue; }
 
-            (void)ext;
+            if (ext & KEYBOARD_RELEASE)
+                continue;
+
+            if (ext == 0x48) return KEY_UP;
+            if (ext == 0x50) return KEY_DOWN;
+            if (ext == 0x4B) return KEY_LEFT;
+            if (ext == 0x4D) return KEY_RIGHT;
 
             continue;
         }
+
         if (scancode & KEYBOARD_RELEASE)
         {
-            unsigned char make =
-                scancode & 0x7F;
+            unsigned char make = scancode & 0x7F;
 
-            if (make == 0x2A)
-                shift_left = 0;
-
-            else if (make == 0x36)
-                shift_right = 0;
+            if (make == 0x2A) shift_left = 0;
+            else if (make == 0x36) shift_right = 0;
 
             continue;
         }
-        if (scancode == 0x2A)
-        {
-            shift_left = 1;
-            continue;
-        }
 
-        if (scancode == 0x36)
-        {
-            shift_right = 1;
-            continue;
-        }
-        if (scancode == 0x3A)
-        {
-            caps_lock = !caps_lock;
-            continue;
-        }
-        if (scancode == 0x0E)
-            return KEY_BACKSPACE;
+        if (scancode == 0x2A) { shift_left = 1; continue; }
+        if (scancode == 0x36) { shift_right = 1; continue; }
+        if (scancode == 0x3A) { caps_lock = !caps_lock; continue; }
 
-        if (scancode == 0x0F)
-            return KEY_TAB;
-
-        if (scancode == 0x1C)
-            return KEY_ENTER;
+        if (scancode == 0x0E) return KEY_BACKSPACE;
+        if (scancode == 0x0F) return KEY_TAB;
+        if (scancode == 0x1C) return KEY_ENTER;
+        if (scancode == 0x1F && super_pressed) {
+            return KEY_SUPER_S;
+        }
 
         if (scancode >= 128)
             continue;
@@ -198,20 +192,14 @@ int keyboard_getkey(void)
 
         if (c >= 'a' && c <= 'z')
         {
-            if (caps_lock &&
-                !(shift_left || shift_right))
-            {
+            if (caps_lock && !(shift_left || shift_right))
                 c = (char)(c - 'a' + 'A');
-            }
         }
 
         if (c >= 'A' && c <= 'Z')
         {
-            if (caps_lock &&
-                (shift_left || shift_right))
-            {
+            if (caps_lock && (shift_left || shift_right))
                 c = (char)(c - 'A' + 'a');
-            }
         }
 
         return (int)c;

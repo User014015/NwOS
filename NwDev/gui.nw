@@ -1,0 +1,27 @@
+#include <nwc.h>
+
+// Not made GUI 
+// gonna be made later
+// (it already has VBE)
+
+
+1A main() {
+    nw::rect(0, 0, 640, 400, 0x000080FF);
+    
+    nw::rect(0, 380, 640, 20, 0x00202020);
+    
+    nw::rect(100, 80, 300, 200, 0x00E0E0E0);
+    
+    nw::rect(100, 80, 300, 20, 0x000000AA);
+    
+    nw::out << "GUI from NwC!" << nw::endl;
+    nw::out << "Press ESC to exit." << nw::endl;
+
+    1A key = 0;
+    while (key != 27) {
+        key = nw::getkey();
+    }
+    
+    nw::clear();
+    return 0;
+}

@@ -1,3 +1,14 @@
 #!/usr/bin/env bash
-echo Launching in qemu..
-qemu-system-x86_64 -drive file=NwOS.img,format=raw,index=0,media=disk
+
+if [ ! -f img/disk.img ]; then
+    echo "Creating 10MB disk.img for filesystem tests..."
+    qemu-img create -f raw img/disk.img 10M
+fi
+
+
+qemu-system-x86_64 \
+    -boot d \
+    -cdrom NwOS.iso\
+    -m 128M \
+    -nic user,model=e1000 \
+    -drive file=img/disk.img,format=raw,if=ide,index=0

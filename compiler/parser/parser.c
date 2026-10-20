@@ -1003,6 +1003,29 @@ static ASTNode* parse_nw_statement(Parser* parser)
         return node;
     }
 
+    if (parser_is(parser, TOKEN_RECT))
+    {
+        ASTNode* node;
+        ASTNode* first = NULL;
+        ASTNode* last = NULL;
+
+        parser_advance(parser);
+        node = ast_new(AST_CALL, line, column);
+        node->text = copy_text("nw::rect");
+
+        parser_expect(parser, TOKEN_LPAREN);
+
+        while (!parser_is(parser, TOKEN_RPAREN) && !parser_is(parser, TOKEN_EOF)) {
+            ast_append(&first, &last, parse_expression(parser));
+            if (!parser_match(parser, TOKEN_COMMA)) break;
+        }
+
+        parser_expect(parser, TOKEN_RPAREN);
+        parser_expect(parser, TOKEN_SEMICOLON);
+        node->child = first;
+        return node;
+    }
+
 
     parser_error(
         parser,
@@ -1034,6 +1057,8 @@ static ASTNode* parse_statement(Parser* parser)
     {
         return parse_nw_statement(parser);
     }
+
+    
 
 
     parser_error(

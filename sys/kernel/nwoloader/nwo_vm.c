@@ -1526,6 +1526,20 @@ int nwo_execute(
 
                 break;
             }
+/*
+            case 0x64: {
+                int color = (int)stack[--sp]; 
+                int h     = (int)stack[--sp];
+                int w     = (int)stack[--sp];
+                int y     = (int)stack[--sp];
+                int x     = (int)stack[--sp];
+                
+                extern void fb_draw_rect(int x, int y, int w, int h, unsigned int color);
+                fb_draw_rect(x, y, w, h, (unsigned int)color);
+                break;
+            }
+
+            */
 
             case OP_COLOR:
             {
