@@ -1,11 +1,12 @@
 #include "nwo_loader.h"
+#include "kernel.h"
 int fs_find(const char* name);
 
-void ata_read_sector(
+void ata_read_sector_d(
+    int drive_idx,
     unsigned int lba,
     unsigned char* buffer);
 
-#define NWO_FS_DATA_LBA      202
 #define NWO_FS_SECTOR_SIZE   512
 
 #define NWO_HEADER_SIZE      20
@@ -109,8 +110,9 @@ int nwo_load(
     if (index == -1)
         return 0;
 
-    ata_read_sector(
-        NWO_FS_DATA_LBA + (unsigned int)index,
+    ata_read_sector_d(
+        fs_get_drive(),
+        FS_DATA_LBA + (unsigned int)index,
         nwo_file_buffer);
 
     file_size = NWO_HEADER_SIZE;

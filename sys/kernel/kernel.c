@@ -9,6 +9,7 @@
 
 #include "Apps/Games/slot.h"
 #include "Apps/Games/game_memory.h"
+#include "Apps/Games/snake.h"
 #include "kernel.h"
 
 #include "Apps/fileStats/filestats.h"
@@ -21,7 +22,8 @@
 
 #include "nwo_loader.h"
 
-#include "timer.h"
+#include "network/timer.h"
+#include "zones.h"
 
 #include "../../include/LogoNwOS.h"
 
@@ -29,7 +31,22 @@
 
 #include <stdint.h>
 
+// NWOS VERSIONS
+#define OS_NAME            "NwOS"
+#define OS_VERSION_MAJOR   1
+#define OS_VERSION_MINOR   4
+#define OS_VERSION_PATCH   5
+#define OS_MADE_DATE      "2026.08.27"
+
+#define OS_STR_HELPER(x)   #x
+#define OS_STR(x)          OS_STR_HELPER(x)
+
+#define OS_VERSION_STR     OS_STR(OS_VERSION_MAJOR) "." \
+                          OS_STR(OS_VERSION_MINOR) "." \
+                          OS_STR(OS_VERSION_PATCH)
+
 void disk_death(void);
+void game_snake(void);
 
 /*
 * MADE BY: User014015
@@ -51,16 +68,21 @@ void putchar_os(char c);
 
 void print(const char* text);
 void fs_mkdir(const char* name);
+void fs_rmdir(const char* name);
+void fs_rm(const char* args);
 void clear(void);
 void unknow_panic(unsigned int code);
 void nwo_run(const char* filename);
-
+void nwf_cpu_name(char* out);
+unsigned int nwf_ram_mb(void);
 void read_line(char* buffer, int max);
 
 unsigned int rand_simple(void);
 void set_p_shell(void);
 void print_shell_p(void);
 void change_p_color(void);
+static void cmd_more_help(void);
+void print_title(const char* text);
 void settings_load(void);
 void settings_save(void);
 void cmd_settings(void);
@@ -75,6 +97,17 @@ void print_success(const char* text);
 
 void *memcpy(void *dest, const void *src, unsigned int n);
 static void cmd_disks(void);
+
+void fs_set_drive(int idx);
+int  fs_get_drive(void);
+void fs_format_disk(int drive_idx);
+void installer(void);
+
+static void print_size_bytes(unsigned long long bytes);
+
+static int installer_cancelled = 0;
+
+static void cmd_install(void);
 
 void app_nwo_info(const char* filename);
 void app_hexview(const char* filename);
@@ -95,11 +128,10 @@ void game_tictactoe(void);
 
 void reboot(void);
 
-void game_slots(void);
-void game_memory(void);
 
-void app_base_converter(void);
-void app_file_stats(void);
+
+
+
 
 void generate_num(void);
 
@@ -107,7 +139,7 @@ void games_menu(void);
 int strncmp(const char* a, const char* b, int n);
 void nwo_run(const char* filename);
 
-void redactor(const char* filename);
+
 int fs_read_text(
     const char* name,
     char* buffer,
@@ -130,9 +162,6 @@ typedef unsigned short uint16_t;
 #define MAX_FILES 64
 #define MAX_FILENAME 32
 #define MAX_FILE_SIZE 2048
-#define FS_DIR_LBA 200
-#define FS_DIR_SECTORS 10
-#define FS_DATA_LBA (FS_DIR_LBA + FS_DIR_SECTORS)
 
 #define FS_TYPE_FILE 0
 #define FS_TYPE_DIR  1
@@ -171,6 +200,7 @@ typedef struct {
 
 #define FS_MAGIC_LBA   199
 #define FS_MAGIC_VALUE 0x4E774653  // "NwFS"
+#define FS_SEQ_OFFSET  4           /* install sequence inside the magic sector */
 
 static DirEntry directory[MAX_FILES];
 static uint16_t current_dir = 0;
@@ -179,18 +209,24 @@ static unsigned char text_color = COLOR_LIGHT_GRAY;
 static unsigned char base_color = COLOR_LIGHT_GRAY;
 static unsigned char prompt_color = COLOR_CYAN;
 
+static int timezone_offset = 0; /* UTC+0 by default */
+static int custom_time_offset = 0;
+static int use_custom_time = 0;
+static int custom_day = -1;
+static int custom_month = -1;
+static int custom_year = -1;
+
 void fs_load(void);
 void fs_save_directory(void);
 
 int shell_p = 0;
-char invite_user[28] = "NwOS> ";
+char invite_user[28] = OS_NAME "> ";
 
 #define SETTINGS_FILE "sys.conf"
 #define SETTINGS_MAX  2048
 
 char cfg_user[32] = "user";
-char cfg_os[32] = "NwOS";
-char cfg_version[16] = "1.4.4";
+char cfg_os[32] = OS_NAME;
 
 static unsigned char color_from_name(const char* name);
 static int cfg_find_key(const char* buffer, const char* key, char* out, int out_max);
@@ -284,12 +320,10 @@ void render_view(void)
         pad = HEIGHT - shown;
     }
 
-    // Очищаем пустые строки сверху
     for (int row = 0; row < pad; row++)
         for (int x = 0; x < WIDTH; x++)
             fb_draw_char(x, row, ' ', COLOR_LIGHT_GRAY);
 
-    // Рисуем текст
     for (int i = 0; i < shown; i++)
     {
         int idx = (line_start + first + i) % SCROLLBACK_LINES;
@@ -300,12 +334,161 @@ void render_view(void)
         }
     }
     
-    // Рисуем мигающий курсор
     int cy = pad + shown - 1;
     if (cy >= 0 && cy < HEIGHT) {
         fb_draw_char(cursor_col, cy, '_', COLOR_WHITE);
     }
 }
+static void cmd_mem(void)
+{
+    unsigned int ram_mb = nwf_ram_mb();
+    print_title("Memory Information:\n");
+    print("  Total RAM: ");
+    print_int((int)ram_mb);
+    print(" MiB\n");
+    print("  Memory model: 32-bit\n");
+    putchar_os('\n');
+}
+
+static void cmd_cpu(void)
+{
+    char cpu_name[49];
+    nwf_cpu_name(cpu_name);
+    print_title("CPU Information:\n");
+    print("  CPU: ");
+    print(cpu_name);
+    putchar_os('\n');
+    print("  Architecture: x86_64\n");
+    putchar_os('\n');
+}
+
+static void cmd_uptime(void)
+{
+    unsigned long long total_sec = timer_ms() / 1000;
+    unsigned long long up_m = total_sec / 60;
+    unsigned long long up_h = up_m / 60;
+    up_m %= 60;
+    total_sec %= 60;
+    print_title("Uptime:\n");
+    print("  ");
+    if (up_h > 0) { print_int((int)up_h); print("h "); }
+    if (up_m > 0) { print_int((int)up_m); print("m "); }
+    print_int((int)total_sec); print("s\n");
+    putchar_os('\n');
+}
+
+static void cmd_zones(void)
+{
+    print_title("Time Zones (all 24h worldwide):\n");
+    for (int i = 0; i < TIME_ZONE_COUNT; i++)
+    {
+        print_int(i + 1);
+        print(". ");
+        print(time_zone_names[i]);
+        if (timezone_offset == time_zone_offsets[i])
+            print(" [ACTIVE]");
+        putchar_os('\n');
+    }
+    putchar_os('\n');
+    print("Use 'timezone <num>' to set zone.\n");
+    print("Use 'date <DD> <MM> <YYYY>' to set custom date.\n");
+    print("Use 'date reset' to reset date to RTC.\n\n");
+}
+
+static void cmd_timezone(const char* args)
+{
+    if (args[0] == '\0')
+    {
+        print("Usage: timezone <num> (1-");
+        print_int(TIME_ZONE_COUNT);
+        print(")\n");
+        return;
+    }
+    int num = atoi_simple(args);
+    if (num < 1 || num > TIME_ZONE_COUNT)
+    {
+        print_error("Invalid timezone number.\n");
+        return;
+    }
+    timezone_offset = time_zone_offsets[num - 1];
+    print_success("Timezone set to: ");
+    print(time_zone_names[num - 1]);
+    putchar_os('\n');
+}
+
+static void cmd_date_set(const char* args)
+{
+    if (args[0] == '\0')
+    {
+        print("Usage: date <DD> <MM> <YYYY> or date reset\n");
+        return;
+    }
+    if (strcmp(args, "reset") == 0)
+    {
+        custom_day = -1;
+        custom_month = -1;
+        custom_year = -1;
+        print_success("Date reset to RTC.\n");
+        return;
+    }
+    char d[16], m[16], y[16];
+    int i = 0, j = 0;
+    while (args[i] == ' ') i++;
+    while (args[i] != ' ' && args[i] != '\0' && j < 15) { d[j++] = args[i++]; }
+    d[j] = '\0';
+    while (args[i] == ' ') i++;
+    j = 0;
+    while (args[i] != ' ' && args[i] != '\0' && j < 15) { m[j++] = args[i++]; }
+    m[j] = '\0';
+    while (args[i] == ' ') i++;
+    j = 0;
+    while (args[i] != '\0' && j < 15) { y[j++] = args[i++]; }
+    y[j] = '\0';
+    
+    int dd = atoi_simple(d);
+    int mm = atoi_simple(m);
+    int yy = atoi_simple(y);
+    
+    if (dd < 1 || dd > 31 || mm < 1 || mm > 12 || yy < 0)
+    {
+        print_error("Invalid date.\n");
+        return;
+    }
+    
+    custom_day = dd;
+    custom_month = mm;
+    custom_year = yy;
+    print_success("Date set to ");
+    print_int(dd); print("."); print_int(mm); print("."); print_int(yy);
+    print(" (OS will display this date).\n");
+}
+
+static void cmd_time_cmd(void)
+{
+    int hour, min, sec;
+    int day, month, year;
+    get_time(&hour, &min, &sec);
+    get_date(&day, &month, &year);
+    print_title("Current Time/Date:\n");
+    print("  Time: ");
+    print_two_digits(hour); putchar_os(':');
+    print_two_digits(min); putchar_os(':');
+    print_two_digits(sec);
+    putchar_os('\n');
+    print("  Date: ");
+    print_two_digits(day); putchar_os('.');
+    print_two_digits(month); putchar_os('.');
+    print_int(year);
+    putchar_os('\n');
+    print("  Zone: UTC");
+    if (timezone_offset >= 0) putchar_os('+');
+    print_int(timezone_offset);
+    putchar_os('\n');
+    if (custom_day != -1)
+        print("  (Custom date active)\n");
+    putchar_os('\n');
+}
+
 void clear(void)
 {
     line_start = 0;
@@ -467,6 +650,12 @@ static void cfg_strcpy(char* dest, const char* src, int max)
     dest[i] = '\0';
 }
 
+void wait_key(void)
+{
+    print("\nPress any key to continue...\n");
+    keyboard_getkey();
+}
+
 void read_line(char* buffer, int max)
 {
     int length = 0;
@@ -616,6 +805,7 @@ void game_guess(void)
         if (strcmp(buffer, "quit") == 0)
         {
             print("You left the game.\n");
+            wait_key();
             return;
         }
 
@@ -624,6 +814,7 @@ void game_guess(void)
         if (number == secret)
         {
             print_success("Correct! You win!\n");
+            wait_key();
             return;
         }
 
@@ -743,6 +934,7 @@ void game_rps(void)
         print_success("You won the match!\n");
     else
         print_error("Computer won the match!\n");
+    wait_key();
 }
 
 void game_guessh(void)
@@ -764,6 +956,7 @@ void game_guessh(void)
         if (strcmp(bufferh, "quit") == 0)
         {
             print("You left the game.\n");
+            wait_key();
             return;
         }
 
@@ -772,6 +965,7 @@ void game_guessh(void)
         if (number == secreth)
         {
             print_success("Correct! You win!\n");
+            wait_key();
             return;
         }
 
@@ -823,6 +1017,7 @@ void game_coin(void)
     }
 
     putchar_os('\n');
+    wait_key();
 }
 
 void game_dice(void)
@@ -838,6 +1033,7 @@ void game_dice(void)
     putchar_os('\n');
 
     putchar_os('\n');
+    wait_key();
 }
 
 void game_higher_lower(void)
@@ -912,6 +1108,7 @@ void game_higher_lower(void)
     print("Final score: ");
     print_int(score);
     putchar_os('\n');
+    wait_key();
 }
 
 void game_math(void)
@@ -985,6 +1182,7 @@ void game_math(void)
     print("\nScore: ");
     print_int(score);
     print("/5\n\n");
+    wait_key();
 }
 
 
@@ -1057,6 +1255,7 @@ void game_hangman(void)
             print("You left the game. The word was: ");
             print(word);
             putchar_os('\n');
+            wait_key();
             return;
         }
 
@@ -1113,6 +1312,7 @@ void game_hangman(void)
         print(word);
         putchar_os('\n');
     }
+    wait_key();
 }
 
 
@@ -1211,6 +1411,7 @@ void game_tictactoe(void)
         {
             ttt_print_board(board);
             print_success("You win!\n\n");
+            wait_key();
             return;
         }
 
@@ -1218,6 +1419,7 @@ void game_tictactoe(void)
         {
             ttt_print_board(board);
             print("It's a draw!\n\n");
+            wait_key();
             return;
         }
 
@@ -1235,6 +1437,7 @@ void game_tictactoe(void)
         {
             ttt_print_board(board);
             print_error("Computer wins!\n\n");
+            wait_key();
             return;
         }
 
@@ -1242,6 +1445,7 @@ void game_tictactoe(void)
         {
             ttt_print_board(board);
             print("It's a draw!\n\n");
+            wait_key();
             return;
         }
     }
@@ -1308,6 +1512,82 @@ void print_int(int number)
     {
         i--;
         putchar_os(buffer[i]);
+    }
+}
+
+#define SIZE_KB 1024ULL
+#define SIZE_MB (1024ULL * 1024ULL)
+#define SIZE_GB (1024ULL * 1024ULL * 1024ULL)
+
+void print_uint64(unsigned long long value)
+{
+    char buffer[24];
+    int i = 0;
+
+    if (value == 0)
+    {
+        putchar_os('0');
+        return;
+    }
+
+    while (value > 0 && i < 24)
+    {
+        buffer[i++] = (char)('0' + (int)(value % 10));
+        value /= 10;
+    }
+
+    while (i > 0)
+    {
+        i--;
+        putchar_os(buffer[i]);
+    }
+}
+
+static void print_size_unit(
+    unsigned long long bytes,
+    unsigned long long unit,
+    int decimals,
+    const char* suffix
+)
+{
+    static const unsigned long long pow10[3] = { 1ULL, 10ULL, 100ULL };
+
+    unsigned long long whole = bytes / unit;
+    unsigned long long frac = 0;
+
+    if (decimals > 0 && decimals <= 3)
+    {
+        frac = ((bytes % unit) * pow10[decimals - 1]) / unit;
+    }
+
+    print_uint64(whole);
+
+    if (decimals > 0)
+    {
+        putchar_os('.');
+
+        for (int i = decimals - 1; i >= 0; i--)
+        {
+            putchar_os((char)('0' + (int)((frac / pow10[i]) % 10)));
+        }
+    }
+
+    print(" ");
+    print(suffix);
+}
+
+static void print_size_human(unsigned long long bytes)
+{
+    if (bytes >= SIZE_GB)
+        print_size_unit(bytes, SIZE_GB, 2, "GB");
+    else if (bytes >= SIZE_MB)
+        print_size_unit(bytes, SIZE_MB, 2, "MB");
+    else if (bytes >= SIZE_KB)
+        print_size_unit(bytes, SIZE_KB, 2, "KB");
+    else
+    {
+        print_uint64(bytes);
+        print(" B");
     }
 }
 
@@ -1470,8 +1750,8 @@ static const uint8_t font8x8_basic[128][8] = {
 void dateCr()
 {
     set_color(COLOR_WHITE);
-    print("2026.08.27\n");
-    print("v.1.4.1\n");
+    print(OS_MADE_DATE "\n");
+    print("v." OS_VERSION_STR "\n");
     set_color(base_color);
 }
 
@@ -1491,6 +1771,7 @@ void game_word(void)
         if (strcmp(answer, "Rust") == 0)
         {
             print_success("Correct! You win!\n");
+            wait_key();
             return;
         }
 
@@ -1498,40 +1779,8 @@ void game_word(void)
     }
 
     print_error("The answer was: Rust\n");
+    wait_key();
 }
-/* // old nwfetch
-void nwfetch(void)
-{
-    print_title("\n");
-
-    print("       __  __       ");
-    print_success("   NwOS\n");
-
-    print("      |  \\|  |      ");
-    print_success("   Version: 1.4.1\n");
-
-    print("      | |\\| |      ");
-    print_success("   Arch: x86\n");
-
-    print("      | |\\| |      ");
-    print_success("   Kernel: C\n");
-
-    print("      |_|  |_|      ");
-    print_success("   Bootloader: NASM\n");
-
-    print("\n");
-
-    set_color(COLOR_YELLOW);
-
-    print("  Memory model: 32-bit\n");
-    print("  Display: VGA text mode\n");
-    print("  Keyboard: PS/2\n");
-    print("\n");
-
-    set_color(base_color);
-}
-*/
-
 static void port_outb(unsigned short port, unsigned char val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
@@ -1550,15 +1799,30 @@ unsigned char bcd_to_bin(unsigned char value) {
 }
 
 void get_time(int* hour, int* minute, int* second) {
+    if (use_custom_time) {
+        /* For custom time, just use RTC + offsets if set */
+    }
     while (rtc_read(0x0A) & 0x80); 
     
     *second = bcd_to_bin(rtc_read(0x00));
     *minute = bcd_to_bin(rtc_read(0x02));
     *hour   = bcd_to_bin(rtc_read(0x04));
+    
+    int total = *hour + timezone_offset + custom_time_offset;
+    while (total < 0) total += 24;
+    while (total >= 24) total -= 24;
+    *hour = total;
 }
 
 void get_date(int* day, int* month, int* year) {
     while (rtc_read(0x0A) & 0x80);
+    
+    if (custom_day != -1 && custom_month != -1 && custom_year != -1) {
+        *day = custom_day;
+        *month = custom_month;
+        *year = custom_year;
+        return;
+    }
     
     *day   = bcd_to_bin(rtc_read(0x07));
     *month = bcd_to_bin(rtc_read(0x08));
@@ -1577,7 +1841,7 @@ static void nwf_cpuid(unsigned int leaf, unsigned int* a, unsigned int* b,
                       : "a"(leaf), "c"(0));
 }
 
-static void nwf_cpu_name(char* out)
+void nwf_cpu_name(char* out)
 {
     unsigned int a, b, c, d;
 
@@ -1620,7 +1884,7 @@ static void nwf_cpu_name(char* out)
     }
 }
 
-static unsigned int nwf_ram_mb(void)
+unsigned int nwf_ram_mb(void)
 {
     unsigned int above16 = (unsigned int)rtc_read(0x34) |
                            ((unsigned int)rtc_read(0x35) << 8);
@@ -1797,12 +2061,12 @@ void nwfetch(void)
 
             case 2:
                 set_color(COLOR_CYAN);  print("OS: ");
-                set_color(COLOR_WHITE); print(cfg_os); print(" "); print(cfg_version); print(" x86_64");
+                set_color(COLOR_WHITE); print(cfg_os); print(" "); print(OS_VERSION_STR); print(" x86_64");
                 break;
 
             case 3:
                 set_color(COLOR_CYAN);  print("Kernel: ");
-                set_color(COLOR_WHITE); print("NwOS 64-bit");
+                set_color(COLOR_WHITE); print(OS_NAME " 64-bit");
                 break;
 
             case 4:
@@ -1830,7 +2094,7 @@ void nwfetch(void)
 
             case 8:
                 set_color(COLOR_CYAN);  print("Terminal: ");
-                set_color(COLOR_WHITE); print("NwOS Console");
+                set_color(COLOR_WHITE); print(OS_NAME " Console");
                 break;
 
             case 9:
@@ -1908,6 +2172,21 @@ void reboot(void)
 }
 
 static DirEntry directory[MAX_FILES];
+
+static int fs_current_drive = 0;
+static int fs_quiet = 0;
+
+void fs_set_drive(int idx)
+{
+    if (idx < 0 || idx >= ata_drive_count()) return;
+    fs_current_drive = idx;
+}
+
+int fs_get_drive(void)
+{
+    return fs_current_drive;
+}
+
 void fs_load(void)
 {
     unsigned char buffer[FS_DIR_SECTORS * 512];
@@ -1921,7 +2200,7 @@ void fs_load(void)
     if (ata_drive_count() == 0) return;/* if no disk */
 
     for (int s = 0; s < FS_DIR_SECTORS; s++) {
-        if (ata_read_sector(FS_DIR_LBA + s, buffer + s * 512) != 0) {
+        if (ata_read_sector_d(fs_current_drive, FS_DIR_LBA + s, buffer + s * 512) != 0) {
             print_error("Warning: FS read failed.\n");
             return;
         }
@@ -1953,32 +2232,232 @@ void fs_save_directory(void)
 
     for (int s = 0; s < FS_DIR_SECTORS; s++)
     {
-        ata_write_sector(FS_DIR_LBA + s, buffer + s * 512);
+        ata_write_sector_d(fs_current_drive, FS_DIR_LBA + s, buffer + s * 512);
     }
 }
-static int fs_is_formatted(void) {
+static int fs_drive_has_fs(int idx)
+{
     unsigned char sector[512];
-    if (ata_read_sector(FS_MAGIC_LBA, sector) != 0) return 0;
+
+    if (idx < 0 || idx >= ata_drive_count()) return 0;
+    if (ata_read_sector_d(idx, FS_MAGIC_LBA, sector) != 0) return 0;
+
     return *(unsigned int*)sector == FS_MAGIC_VALUE;
 }
 
-static void fs_mark_formatted(void) {
+static const char* disk_position_name(ata_drive_t* d)
+{
+    if (d->channel == 0 && d->master) return "primary master";
+    if (d->channel == 0)               return "primary slave";
+    if (d->master)                     return "secondary master";
+
+    return "secondary slave";
+}
+
+int fs_drive_index_by_letter(char letter)
+{
+    int n = ata_drive_count();
+
+    if (letter >= 'a' && letter <= 'z')
+        letter = (char)(letter - 'a' + 'A');
+
+    for (int i = 0; i < n; i++)
+    {
+        ata_drive_t* d = ata_get_drive(i);
+
+        if (d && d->letter == letter)
+            return i;
+    }
+
+    return -1;
+}
+
+char fs_get_drive_letter(void)
+{
+    ata_drive_t* d = ata_get_drive(fs_current_drive);
+
+    if (d) return d->letter;
+
+    return 'C';
+}
+
+/*
+ * Switches the active disk (the one every file operation works on).
+ * The new disk must contain a NwOS filesystem, otherwise nothing changes.
+ * Returns 0 on success, -1 on a bad index and -2 if the disk has no filesystem.
+ */
+int fs_change_drive(int idx)
+{
+    if (idx < 0 || idx >= ata_drive_count()) return -1;
+
+    if (!fs_drive_has_fs(idx)) return -2;
+
+    if (idx != fs_current_drive)
+    {
+        fs_current_drive = idx;
+        current_dir = 0;
+
+        fs_load();
+    }
+
+    return 0;
+}
+
+int fs_change_drive_letter(char letter)
+{
+    int idx = fs_drive_index_by_letter(letter);
+
+    if (idx < 0) return -1;
+
+    return fs_change_drive(idx);
+}
+
+static unsigned char fs_scratch[FS_DIR_SECTORS * 512];
+
+static int fs_read_directory_of(int idx, DirEntry* out)
+{
+    if (idx < 0 || idx >= ata_drive_count()) return -1;
+
+    for (int s = 0; s < FS_DIR_SECTORS; s++)
+    {
+        if (ata_read_sector_d(idx, FS_DIR_LBA + s, fs_scratch + s * 512) != 0)
+            return -1;
+    }
+
+    DirEntry* disk_entries = (DirEntry*)fs_scratch;
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        out[i] = disk_entries[i];
+
+        if (out[i].used != 1)
+        {
+            out[i].used = 0;
+            out[i].name[0] = '\0';
+            out[i].size = 0;
+        }
+    }
+
+    return 0;
+}
+
+static unsigned long long fs_drive_used_bytes(int idx, unsigned int* file_count)
+{
+    static DirEntry entries[MAX_FILES];
+
+    unsigned long long total = 0;
+    unsigned int files = 0;
+
+    if (file_count) *file_count = 0;
+
+    if (fs_read_directory_of(idx, entries) != 0) return 0;
+
+    for (int i = 1; i < MAX_FILES; i++)
+    {
+        if (!entries[i].used) continue;
+        if (entries[i].type != FS_TYPE_FILE) continue;
+
+        total += entries[i].size;
+        files++;
+    }
+
+    if (file_count) *file_count = files;
+
+    return total;
+}
+
+static unsigned int fs_drive_entry_count(int idx)
+{
+    static DirEntry entries[MAX_FILES];
+
+    unsigned int count = 0;
+
+    if (fs_read_directory_of(idx, entries) != 0) return 0;
+
+    for (int i = 1; i < MAX_FILES; i++)
+    {
+        if (entries[i].used) count++;
+    }
+
+    return count;
+}
+
+static unsigned int fs_drive_seq(int idx)
+{
+    unsigned char sector[512];
+
+    if (!fs_drive_has_fs(idx)) return 0;
+
+    if (ata_read_sector_d(idx, FS_MAGIC_LBA, sector) != 0) return 0;
+
+    return *(unsigned int*)(sector + FS_SEQ_OFFSET);
+}
+
+static unsigned int fs_max_seq(void)
+{
+    unsigned int max = 0;
+
+    for (int i = 0; i < ata_drive_count(); i++)
+    {
+        unsigned int seq = fs_drive_seq(i);
+
+        if (seq > max) max = seq;
+    }
+
+    return max;
+}
+
+static int fs_find_drive_with_fs(void)
+{
+    int n = ata_drive_count();
+    int best = -1;
+    unsigned int best_seq = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        if (!fs_drive_has_fs(i)) continue;
+
+        unsigned int seq = fs_drive_seq(i);
+
+        if (best < 0 || seq > best_seq)
+        {
+            best = i;
+            best_seq = seq;
+        }
+    }
+
+    return best;
+}
+
+static int fs_is_formatted(void) {
+    unsigned char sector[512];
+    if (ata_read_sector_d(fs_current_drive, FS_MAGIC_LBA, sector) != 0) return 0;
+    return *(unsigned int*)sector == FS_MAGIC_VALUE;
+}
+
+static void fs_mark_formatted(unsigned int seq) {
     unsigned char sector[512];
     for (int k = 0; k < 512; k++) sector[k] = 0;
     *(unsigned int*)sector = FS_MAGIC_VALUE;
-    ata_write_sector(FS_MAGIC_LBA, sector);
+    *(unsigned int*)(sector + FS_SEQ_OFFSET) = seq;
+    ata_write_sector_d(fs_current_drive, FS_MAGIC_LBA, sector);
 }
 
 static void fs_wipe_magic(void) {
     unsigned char sector[512];
     for (int k = 0; k < 512; k++) sector[k] = 0;
     *(unsigned int*)sector = 0xDEADBEEF;
-    ata_write_sector(FS_MAGIC_LBA, sector);
+    ata_write_sector_d(fs_current_drive, FS_MAGIC_LBA, sector);
 }
 
 int fs_load_status(void) {
     if (ata_drive_count() == 0) return 0;
-    if (!fs_is_formatted()) return 0;
+
+    int drive = fs_find_drive_with_fs();
+
+    if (drive < 0) return 0;
+
+    fs_set_drive(drive);
     
     fs_load();
     
@@ -1990,11 +2469,17 @@ int fs_load_status(void) {
     }
     return 1;
 }
-void fs_format(void) {
+void fs_format_disk(int drive_idx) {
     unsigned char zero[512];
     for (int k = 0; k < 512; k++) zero[k] = 0;
+
+    fs_set_drive(drive_idx);
+    fs_quiet = 1;
+
+    unsigned int seq = fs_max_seq() + 1;
+
     for (int i = 0; i < MAX_FILES; i++) {
-        ata_write_sector(FS_DATA_LBA + i, zero);
+        ata_write_sector_d(fs_current_drive, FS_DATA_LBA + i, zero);
     }
     
     for (int i = 0; i < MAX_FILES; i++) {
@@ -2033,6 +2518,16 @@ void fs_format(void) {
             fs_cd(dir_path); 
         }
 
+        print("    [");
+        print_int(i + 1);
+        print("/");
+        print_int(ROOTFS_FILE_COUNT);
+        print("] ");
+        print(path);
+        print("  (");
+        print_int((int)size);
+        print(" bytes)\n");
+
         if (fs_find(file_name) == -1) {
             fs_create(file_name);
             int idx = fs_find(file_name);
@@ -2040,7 +2535,7 @@ void fs_format(void) {
                 unsigned char sector[512];
                 for (int k = 0; k < 512; k++) sector[k] = 0;
                 for (unsigned int k = 0; k < size && k < 511; k++) sector[k] = data[k];
-                ata_write_sector(FS_DATA_LBA + idx, sector);
+                ata_write_sector_d(fs_current_drive, FS_DATA_LBA + idx, sector);
                 directory[idx].size = size;
             }
         }
@@ -2048,10 +2543,16 @@ void fs_format(void) {
 
     current_dir = 0;
 
-    fs_mark_formatted();
+    fs_mark_formatted(seq);
     fs_save_directory();
+
+    fs_quiet = 0;
     
     print_success("Filesystem formatted. Rootfs installed.\n");
+}
+
+void fs_format(void) {
+    fs_format_disk(fs_current_drive);
 }
 
 int fs_find(const char* name)
@@ -2189,10 +2690,10 @@ void fs_create(const char* name) {
 
             unsigned char empty[512];
             for (int k = 0; k < 512; k++) empty[k] = 0;
-            ata_write_sector(FS_DATA_LBA + i, empty);
+            ata_write_sector_d(fs_current_drive, FS_DATA_LBA + i, empty);
 
             fs_save_directory();
-            print_success("File created.\n");
+            if (!fs_quiet) print_success("File created.\n");
             return;
         }
     }
@@ -2221,7 +2722,7 @@ void fs_mkdir(const char* name) {
             directory[i].size = 0;
 
             fs_save_directory();
-            print_success("Directory created.\n");
+            if (!fs_quiet) print_success("Directory created.\n");
             return;
         }
     }
@@ -2309,6 +2810,24 @@ void sleep(unsigned int ms)
     }
 }
 
+#define MENU_INNER 34
+
+static void menu_border(void)
+{
+    print("                    +");
+    for (int i = 0; i < MENU_INNER; i++) putchar_os('-');
+    print("+\n");
+}
+
+static void menu_line(const char* text)
+{
+    print("                    |");
+    int n = 0;
+    while (text[n]) { putchar_os(text[n]); n++; }
+    while (n < MENU_INNER) { putchar_os(' '); n++; }
+    print("|\n");
+}
+
 void games_menu(void)
 {
     char choice[8];
@@ -2318,31 +2837,34 @@ void games_menu(void)
         clear();
 
         print("\n\n");
-        set_color(COLOR_YELLOW);
-        print("                    NwOS GAMES\n\n");
+        set_color(COLOR_CYAN);
+        menu_border();
+        menu_line("            NWOS ARCADE");
+        menu_border();
         set_color(base_color);
+        print("\n");
 
+        menu_border();
+        menu_line("           GAMES MENU");
+        menu_border();
+        menu_line("  [1]  Guess Number");
+        menu_line("  [2]  Guess Word");
+        menu_line("  [3]  Rock Paper Scissors");
+        menu_line("  [4]  Coin Flip");
+        menu_line("  [5]  Dice Roll");
+        menu_line("  [6]  Higher / Lower");
+        menu_line("  [7]  Math Quiz");
+        menu_line("  [8]  Hangman");
+        menu_line("  [9]  Tic-Tac-Toe");
+        menu_line("  [10] Memory Match");
+        menu_line("  [11] Slot Machine");
+        menu_line("  [12] Snake");
+        menu_line("  [13] Guess Hard");
+        menu_border();
+        menu_line("  [0]  Back to Shell");
+        menu_border();
+        print("\n");
 
-        print("                      +----------------------+\n");
-        print("                      |      GAMES MENU      |\n");
-        print("                      +----------------------+\n");
-        print("                      |  1. Guess Number     |\n");
-        print("                      |  2. Word Game        |\n");
-        print("                      |  3. Rock Paper Sc.   |\n");
-        print("                      |  4. Coin Flip        |\n");
-        print("                      |  5. Dice             |\n");
-        print("                      |  6. Higher / Lower   |\n");
-        print("                      |  7. Math Quiz        |\n");
-        print("                      |  8. Hangman          |\n");
-        print("                      |  9. Tic-Tac-Toe      |\n");
-        print("                      |  10. Game memory     |\n");
-        print("                      |  11. Game Slot       |\n");
-        print("                      |                      |\n");
-        print("                      |  0. Back             |\n");
-        print("                      +----------------------+\n\n");
-
-        print("                      | \n");
-        print("                      | \n");
         print("                      -----> ");
 
         read_line(choice, 8);
@@ -2407,9 +2929,20 @@ void games_menu(void)
             clear();
             game_slots();
         }
+        else if (strcmp(choice, "12") == 0)
+        {
+            clear();
+            game_snake();
+        }
+        else if (strcmp(choice, "13") == 0)
+        {
+            clear();
+            game_guessh();
+        }
         else
         {
             print_error("\nInvalid choice.\n");
+            sleep(1000);
         }
     }
 }
@@ -2454,7 +2987,7 @@ void fs_store_data(int index, const char* text, const char* success_message)
 
     directory[index].size = (unsigned int)i;
 
-    ata_write_sector(FS_DATA_LBA + index, buffer);
+    ata_write_sector_d(fs_current_drive, FS_DATA_LBA + index, buffer);
     fs_save_directory();
 
     if (text[i] != '\0')
@@ -2491,7 +3024,7 @@ void fs_read(const char* name)
 
     unsigned char buffer[512];
 
-    ata_read_sector(FS_DATA_LBA + index, buffer);
+    ata_read_sector_d(fs_current_drive, FS_DATA_LBA + index, buffer);
     buffer[511] = '\0';
 
     print_title("\n--- ");
@@ -2528,6 +3061,12 @@ void fs_delete(const char* name)
         return;
     }
 
+    if (directory[index].type == FS_TYPE_DIR)
+    {
+        print_error("Is a directory. Use 'rmdir' to remove it.\n");
+        return;
+    }
+
     directory[index].used = 0;
 
     directory[index].name[0] = '\0';
@@ -2536,6 +3075,199 @@ void fs_delete(const char* name)
     fs_save_directory();
 
     print_success("File deleted.\n");
+}
+
+static uint16_t fs_removed[MAX_FILES];
+static int fs_removed_count = 0;
+
+static void fs_entry_release(int index)
+{
+    if (fs_removed_count < MAX_FILES)
+        fs_removed[fs_removed_count++] = (uint16_t)index;
+
+    directory[index].used = 0;
+    directory[index].type = 0;
+    directory[index].parent = 0;
+    directory[index].name[0] = '\0';
+    directory[index].size = 0;
+}
+
+/* frees a directory together with everything inside it */
+static void fs_entry_release_tree(int index, int depth)
+{
+    if (depth > 32) return;
+
+    for (int i = 0; i < MAX_FILES; i++)
+    {
+        if (i != index && directory[i].used &&
+            directory[i].parent == index)
+        {
+            fs_entry_release_tree(i, depth + 1);
+        }
+    }
+
+    fs_entry_release(index);
+}
+
+/* if the shell was inside the removed tree, go back to its parent */
+static void fs_release_finish(uint16_t fallback)
+{
+    for (int i = 0; i < fs_removed_count; i++)
+    {
+        if (current_dir == fs_removed[i])
+        {
+            current_dir = fallback;
+            return;
+        }
+    }
+}
+
+/* copies a name into buf and drops the trailing slashes */
+static int fs_name_copy(const char* name, char* buf, int max)
+{
+    int n = 0;
+
+    while (name[n] != '\0' && n < max - 1) n++;
+
+    while (n > 0 && name[n - 1] == '/') n--;
+
+    for (int i = 0; i < n; i++) buf[i] = name[i];
+
+    buf[n] = '\0';
+
+    return n;
+}
+
+void fs_rmdir(const char* name)
+{
+    char buf[MAX_FILENAME + 1];
+
+    if (name == 0 || name[0] == '\0')
+    {
+        print_error("Usage: rmdir <directory>\n");
+        return;
+    }
+
+    if (fs_name_copy(name, buf, sizeof(buf)) == 0)
+    {
+        print_error("Cannot remove the root directory.\n");
+        return;
+    }
+
+    int index = fs_find(buf);
+
+    if (index == -1)
+    {
+        print_error("Directory not found.\n");
+        return;
+    }
+
+    if (index == 0)
+    {
+        print_error("Cannot remove the root directory.\n");
+        return;
+    }
+
+    if (directory[index].type != FS_TYPE_DIR)
+    {
+        print_error("Not a directory. Use 'rm' to remove files.\n");
+        return;
+    }
+
+    uint16_t parent = directory[index].parent;
+
+    fs_removed_count = 0;
+    fs_entry_release_tree(index, 0);
+    fs_release_finish(parent);
+
+    fs_save_directory();
+
+    print_success("Directory removed.\n");
+}
+
+void fs_rm(const char* args)
+{
+    char buf[MAX_FILENAME + 1];
+    int recursive = 0;
+    int force = 0;
+    int i = 0;
+    int n = 0;
+
+    if (args == 0) args = "";
+
+    while (args[i] == ' ') i++;
+
+    while (args[i] == '-')
+    {
+        i++;
+
+        while (args[i] != '\0' && args[i] != ' ')
+        {
+            if (args[i] == 'r' || args[i] == 'R') recursive = 1;
+            else if (args[i] == 'f' || args[i] == 'F') force = 1;
+            i++;
+        }
+
+        while (args[i] == ' ') i++;
+    }
+
+    while (args[i] != '\0' && args[i] != ' ' && n < MAX_FILENAME)
+    {
+        buf[n++] = args[i];
+        i++;
+    }
+
+    buf[n] = '\0';
+
+    while (n > 0 && buf[n - 1] == '/') buf[--n] = '\0';
+
+    if (n == 0)
+    {
+        print_error("Usage: rm [-r] [-f] <file>\n");
+        return;
+    }
+
+    int index = fs_find(buf);
+
+    if (index == -1)
+    {
+        if (force) return;
+        print_error("No such file or directory.\n");
+        return;
+    }
+
+    if (index == 0)
+    {
+        print_error("Cannot remove the root directory.\n");
+        return;
+    }
+
+    if (directory[index].type == FS_TYPE_DIR)
+    {
+        if (!recursive)
+        {
+            print_error("Is a directory. Use 'rm -r' or 'rmdir'.\n");
+            return;
+        }
+
+        uint16_t parent = directory[index].parent;
+
+        fs_removed_count = 0;
+        fs_entry_release_tree(index, 0);
+        fs_release_finish(parent);
+
+        fs_save_directory();
+
+        print_success("Directory removed.\n");
+        return;
+    }
+
+    fs_removed_count = 0;
+    fs_entry_release(index);
+
+    fs_save_directory();
+
+    print_success("File removed.\n");
 }
 
 int fs_read_text(
@@ -2559,7 +3291,8 @@ int fs_read_text(
     if (index == -1)
         return 0;
 
-    ata_read_sector(
+    ata_read_sector_d(
+        fs_current_drive,
         FS_DATA_LBA + index,
         sector
     );
@@ -2636,7 +3369,8 @@ int fs_read_binary(
     if (max_size > 512)
         max_size = 512;
 
-    ata_read_sector(
+    ata_read_sector_d(
+        fs_current_drive,
         FS_DATA_LBA + (unsigned int)index,
         buffer);
 
@@ -2724,6 +3458,18 @@ static void cmd_echo(const char* args);
 static void cmd_write(const char* args);
 static void cmd_panic_safe(void);
 static void cmd_panic_fatal(void);
+static void cmd_mem(void);
+static void cmd_cpu(void);
+static void cmd_uptime(void);
+static void cmd_time_cmd(void);
+static void cmd_zones(void);
+static void cmd_timezone(const char* args);
+static void cmd_date_set(const char* args);
+static void cmd_more_help(void);
+static void cmd_drive(const char* args);
+static void cmd_drive_status(void);
+static void cmd_disk_info(const char* args);
+
 
 static void cmd_disks(void)
 {
@@ -2737,39 +3483,259 @@ static void cmd_disks(void)
     }
 
     print_title("\n=== DISKS ===\n\n");
-    print("DRV  POSITION        SIZE        MODEL\n");
-    print("---  --------------  ----------  -----------------------------------\n");
 
     for (int i = 0; i < n; i++) {
         ata_drive_t* d = ata_get_drive(i);
+        unsigned long long total = (unsigned long long)d->sectors * 512ULL;
+
+        if (i == fs_current_drive) set_color(COLOR_LIGHT_GREEN);
+        else set_color(base_color);
+
         putchar_os(d->letter);
-        print(":   ");
+        print(":");
 
-        if (d->channel == 0 && d->master) print("primary master  ");
-        else if (d->channel == 0)         print("primary slave   ");
-        else if (d->master)               print("second. master  ");
-        else                              print("second. slave   ");
+        if (i == fs_current_drive) print(" *");
+        else print("  ");
 
-        unsigned int mb = d->sectors / 2048;
-        int len = 0;
-        char tb[16];
-        if (mb == 0) tb[len++] = '0';
-        else {
-            char tmp[16]; int tl = 0;
-            while (mb) { tmp[tl++] = '0' + (mb % 10); mb /= 10; }
-            while (tl) tb[len++] = tmp[--tl];
+        set_color(base_color);
+
+        print("  ");
+        print(disk_position_name(d));
+        print("  ");
+
+        print_uint64(total);
+        print(" B  ");
+
+        print_size_human(total);
+
+        if (fs_drive_has_fs(i))
+        {
+            set_color(COLOR_LIGHT_CYAN);
+            print("  [");
+            print(OS_NAME);
+            print("]");
+            set_color(base_color);
         }
-        tb[len++] = ' '; tb[len++] = 'M'; tb[len++] = 'B';
-        tb[len] = '\0';
-        print(tb);
-        for (int k = len; k < 10; k++) putchar_os(' ');
-        putchar_os(' ');
 
-        print(d->model);
         putchar_os('\n');
     }
+
+    putchar_os('\n');
+
+    print("  * = active disk\n");
+    print("  'drive <letter|number>' switches the active disk\n");
+    print("  'disk <letter|number>' shows the detailed size of one disk\n");
     putchar_os('\n');
 }
+
+static int resolve_drive_arg(const char* args)
+{
+    int n = ata_drive_count();
+
+    if (args == 0 || args[0] == '\0') return fs_current_drive;
+
+    char c = args[0];
+
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
+    {
+        return fs_drive_index_by_letter(c);
+    }
+
+    if (c >= '0' && c <= '9')
+    {
+        int num = atoi_simple(args);
+
+        if (num >= 1 && num <= n) return num - 1;
+    }
+
+    return -1;
+}
+
+static void cmd_drive(const char* args)
+{
+    if (ata_drive_count() == 0)
+    {
+        print_error("No ATA disks detected.\n");
+        return;
+    }
+
+    if (args == 0 || args[0] == '\0')
+    {
+        ata_drive_t* d = ata_get_drive(fs_current_drive);
+        unsigned long long total = (unsigned long long)d->sectors * 512ULL;
+
+        print_title("\n=== ACTIVE DISK ===\n\n");
+        print("  Disk:   ");
+        putchar_os(d->letter);
+        print(" (");
+        print(disk_position_name(d));
+        print(")\n");
+        print("  Model:  ");
+        print(d->model);
+        putchar_os('\n');
+        print("  Bytes:  ");
+        print_uint64(total);
+        print(" B  (");
+        print_size_human(total);
+        print(")\n\n");
+
+        print("Usage: drive <letter|number>\n");
+        print("  drive D  - switch to the disk with the letter D\n");
+        print("  drive 2  - switch to the second detected disk\n");
+        putchar_os('\n');
+        return;
+    }
+
+    int idx = resolve_drive_arg(args);
+
+    if (idx < 0)
+    {
+        print_error("Unknown disk. Type 'disks' to see the list.\n");
+        return;
+    }
+
+    if (idx == fs_current_drive)
+    {
+        print_success("Already on that disk (");
+        putchar_os(fs_get_drive_letter());
+        print(").\n");
+        return;
+    }
+
+    int res = fs_change_drive(idx);
+
+    if (res == -2)
+    {
+        print_error("No " OS_NAME " filesystem on that disk (use 'install').\n");
+        return;
+    }
+
+    if (res != 0)
+    {
+        print_error("Cannot switch to that disk.\n");
+        return;
+    }
+
+    ata_drive_t* d = ata_get_drive(fs_current_drive);
+
+    print_success("Switched to ");
+    putchar_os(d->letter);
+    print(": (");
+    print(disk_position_name(d));
+    print(")\n");
+    print("  New files are now created on ");
+    putchar_os(d->letter);
+    print(":\n");
+}
+
+static void cmd_drive_status(void)
+{
+    cmd_drive("");
+}
+
+static void cmd_disk_info(const char* args)
+{
+    if (ata_drive_count() == 0)
+    {
+        print_error("No ATA disks detected.\n");
+        return;
+    }
+
+    int idx = resolve_drive_arg(args);
+
+    if (idx < 0)
+    {
+        print_error("Unknown disk. Type 'disks' to see the list.\n");
+        return;
+    }
+
+    ata_drive_t* d = ata_get_drive(idx);
+
+    if (d == 0)
+    {
+        print_error("Unknown disk.\n");
+        return;
+    }
+
+    unsigned long long total = (unsigned long long)d->sectors * 512ULL;
+
+    print_title("\n=== DISK ");
+    putchar_os(d->letter);
+    print(" ===\n\n");
+
+    print("  Position:   ");
+    print(disk_position_name(d));
+    putchar_os('\n');
+
+    print("  Model:      ");
+    print(d->model);
+    putchar_os('\n');
+
+    print("  Sectors:    ");
+    print_uint64(d->sectors);
+    putchar_os('\n');
+
+    print("  Bytes:      ");
+    print_uint64(total);
+    print(" B\n");
+
+    print("  Kilobytes:  ");
+    print_size_unit(total, SIZE_KB, 2, "KB");
+    putchar_os('\n');
+
+    print("  Megabytes:  ");
+    print_size_unit(total, SIZE_MB, 2, "MB");
+    putchar_os('\n');
+
+    print("  Gigabytes:  ");
+    print_size_unit(total, SIZE_GB, 2, "GB");
+    putchar_os('\n');
+
+    if (fs_drive_has_fs(idx))
+    {
+        unsigned int files = 0;
+        unsigned long long used = fs_drive_used_bytes(idx, &files);
+        unsigned int entries = fs_drive_entry_count(idx);
+        unsigned long long overhead =
+            (unsigned long long)(1 + FS_DIR_SECTORS + MAX_FILES) * 512ULL;
+        unsigned long long free = (total > overhead) ? (total - overhead) : 0;
+
+        print("  Filesystem: ");
+        print(OS_NAME);
+        putchar_os('\n');
+
+        print("  Entries:    ");
+        print_uint64(entries);
+        print(" (");
+        print_uint64(files);
+        print(" files)\n");
+
+        print("  File data:  ");
+        print_uint64(used);
+        print(" B  (");
+        print_size_unit(used, SIZE_KB, 2, "KB");
+        print(")\n");
+
+        print("  Overhead:   ");
+        print_uint64(overhead);
+        print(" B  (");
+        print_size_unit(overhead, SIZE_KB, 2, "KB");
+        print(")\n");
+
+        print("  Free space: ");
+        print_uint64(free);
+        print(" B  (");
+        print_size_unit(free, SIZE_MB, 2, "MB");
+        print(")\n");
+    }
+    else
+    {
+        print("  Filesystem: none (use 'install' to create one)\n");
+    }
+
+    putchar_os('\n');
+}
+
 
 void death_screen(void) {
     print("Removing everything...\n");
@@ -2784,7 +3750,7 @@ void death_screen(void) {
     unsigned char zero[512];
     for (int k = 0; k < 512; k++) zero[k] = 0;
     for (int i = 0; i < MAX_FILES; i++) {
-        ata_write_sector(FS_DATA_LBA + i, zero);
+        ata_write_sector_d(fs_current_drive, FS_DATA_LBA + i, zero);
     }
     
     directory[1].used = 1;
@@ -2797,7 +3763,7 @@ void death_screen(void) {
     unsigned char sector[512];
     for (int k = 0; k < 512; k++) sector[k] = 0;
     for (int k = 0; msg[k] != '\0' && k < 511; k++) sector[k] = msg[k];
-    ata_write_sector(FS_DATA_LBA + 1, sector);
+    ata_write_sector_d(fs_current_drive, FS_DATA_LBA + 1, sector);
     
     fs_save_directory();
     
@@ -2826,7 +3792,14 @@ static const Command commands[] =
     CMD_ARG("write",        cmd_write,       "write <file> <text> - write text to file"),
     CMD_ARG("edit",         redactor,        "edit <file> - edit a file"),
     CMD_ARG("delete",       fs_delete,       "delete <file> - delete file"),
-    CMD    ("reboot",       reboot,          "reboot - restart NwOS"),
+    /* the joke commands are exact matches, so they have to stay in front
+       of "rm" (which is matched by prefix) */
+    CMD    ("rm -rf /",     death_screen,    0),
+    CMD    ("rm /",         death_screen,    0),
+    CMD    ("rm disk/",     disk_death,      0),
+    CMD_ARG("rm",           fs_rm,           "rm [-r] <file> - remove file (-r = directory)"),
+    CMD_ARG("rmdir",        fs_rmdir,        "rmdir <dir> - remove directory with its content"),
+    CMD    ("reboot",       reboot,          "reboot - restart " OS_NAME),
     CMD_ARG("run",          nwo_run,         "run <file.nwo> - run NWO application"),
     CMD    ("apps",         apps_list,       "apps - List of apps"),
     CMD    ("generate num", generate_num,    "generate num - generate num"),
@@ -2834,10 +3807,23 @@ static const Command commands[] =
     CMD_ARG("nwocheck",     app_nwo_info,    "nwocheck <file> - check OPcodes"),
     CMD    ("random word",  say,             "random word - generate word"),
     CMD    ("chat",         chat,            "chat - chat with computer"),
-    CMD    ("change invite",set_p_shell,     "change invite - Change invite ('NwOS>')"),
+    CMD    ("change invite",set_p_shell,     "change invite - Change invite ('" OS_NAME ">')"),
     CMD    ("change color", change_p_color,  "change color - Change prompt color"),
     CMD    ("settings",     cmd_settings,    "settings - show configuration"),
+    CMD    ("mem",          cmd_mem,         "mem    - memory info"),
+    CMD    ("cpu",          cmd_cpu,         0                        ),
+    CMD    ("uptime",       cmd_uptime,      0                        ),
+    CMD    ("time",         cmd_time_cmd,    "time   - show time/date"),
+    CMD    ("zones",        cmd_zones,       "zones  - list all time zones"),
+    CMD_ARG("timezone",    cmd_timezone,    "timezone <num> - set timezone"),
+    CMD_ARG("date",        cmd_date_set,    "date   - set custom date"),
+    CMD    ("more",         cmd_more_help,   "more   - additional commands"),
     CMD    ("disks",        cmd_disks,       "disks  - list all ATA disks"),
+    CMD    ("drive",        cmd_drive_status, 0),
+    CMD_ARG("drive",        cmd_drive,       "drive <C|D|n> - switch the active disk"),
+    CMD_ARG("chdrive",      cmd_drive,       0),
+    CMD_ARG("disk",         cmd_disk_info,   "disk <C|D|n> - detailed size of one disk"),
+    CMD    ("install",      cmd_install,      "install - run the installation wizard"),
     CMD    ("ls",           fs_ls,           "ls     - list files in current dir"),
     CMD_ARG("mkdir",        fs_mkdir,        "mkdir <dir> - create directory"),
     CMD_ARG("cd",           fs_cd,           "cd <dir> - change directory (use .. for up)"),
@@ -2861,10 +3847,7 @@ static const Command commands[] =
     CMD    ("guess",        game_guess,      0),
     CMD    ("rps",          game_rps,        0),
     CMD    ("hangman",      game_hangman,    0),
-    CMD    ("tictactoe",    game_tictactoe,  0),
-    CMD    ("rm -rf /",     death_screen,    0),
-    CMD    ("rm /",         death_screen,    0),
-    CMD    ("rm disk/",     disk_death,      0),
+    CMD    ("tictactoe",    game_tictactoe, 0),
 };
 
 #define COMMAND_COUNT (sizeof(commands) / sizeof(commands[0]))
@@ -2920,14 +3903,37 @@ static void cmd_help(void)
         }
     }
     set_color(base_color);
+    print("\nType 'more' for additional commands.\n");
+}
+
+static void cmd_more_help(void)
+{
+    set_color(COLOR_GREEN);
+    print("More commands:\n");
+    print("  mem      - show memory info\n");
+    print("  cpu      - show CPU info\n");
+    print("  uptime   - show uptime\n");
+    print("  time     - show current time/date\n");
+    print("  zones    - list all time zones\n");
+    print("  timezone <num> - set timezone\n");
+    print("  date <DD> <MM> <YYYY> - set custom date\n");
+    print("  date reset - reset date\n");
+    print("  nwfetch  - system info\n");
+    print("  reboot   - reboot system\n");
+    print("  clear    - clear screen\n");
+    print("  disks    - list all ATA disks\n");
+    print("  drive <C|D|n> - switch the active disk\n");
+    print("  disk <C|D|n>  - detailed size of one disk\n");
+    putchar_os('\n');
+    set_color(base_color);
 }
 
 static void cmd_about(void)
 {
     set_color(COLOR_WHITE);
-    print("====NwOS 1.4.4====\n");
-    print("Name: NwOS\n");
-    print("Version: v1.4.4\n");
+    print("====" OS_NAME " " OS_VERSION_STR "====\n");
+    print("Name: " OS_NAME "\n");
+    print("Version: v" OS_VERSION_STR "\n");
     print("Arch: x86-64\n");
     print("Display: VGA text mode\n");
     print("PS/2 keyboard\n");
@@ -2984,10 +3990,39 @@ static int command_name_length(const char* s)
     return n;
 }
 
-static void shell_execute(const char* command)
+static void trim_whitespace(char* s)
+{
+    if (!s)
+        return;
+
+    while (*s == ' ' || *s == '\t')
+        s++;
+
+    char* p = s;
+    while (*p)
+        p++;
+    while (p > s && (p[-1] == ' ' || p[-1] == '\t'))
+        p--;
+    *p = '\0';
+
+    /* move back to start */
+    if (p == s)
+        return;
+    char* d = s;
+    char* src = s;
+    while (*src == ' ' || *src == '\t')
+        src++;
+    while (*src)
+    {
+        *d++ = *src++;
+    }
+    *d = '\0';
+}
+
+static int execute_single_command(char* command)
 {
     if (command[0] == '\0')
-        return;
+        return 1;
 
     for (unsigned int i = 0; i < COMMAND_COUNT; i++)
     {
@@ -2999,7 +4034,7 @@ static void shell_execute(const char* command)
             if (strcmp(command, c->name) == 0)
             {
                 c->run();
-                return;
+                return 1;
             }
 
             continue;
@@ -3014,7 +4049,7 @@ static void shell_execute(const char* command)
         if (command[n] == ' ')
         {
             c->run_arg(command + n + 1);
-            return;
+            return 1;
         }
 
         if (command[n] == '\0')
@@ -3022,24 +4057,84 @@ static void shell_execute(const char* command)
             print_error("Usage: ");
             print_error(c->help ? c->help : c->name);
             putchar_os('\n');
-            return;
+            return 0;
         }
     }
 
     print_error("Unknown command. Type 'help'.\n");
+    return 0;
+}
+
+static void shell_execute(const char* command)
+{
+    if (command[0] == '\0')
+        return;
+
+    char buf[256];
+    int j = 0;
+    for (int i = 0; command[i] != '\0' && j < 255; i++)
+    {
+        if (command[i] == '&' && command[i + 1] == '&')
+        {
+            buf[j] = '\0';
+            char cmd[128];
+            int k = 0;
+            for (int t = 0; buf[t] != '\0' && k < 127; t++)
+            {
+                cmd[k++] = buf[t];
+            }
+            cmd[k] = '\0';
+
+            /* trim */
+            int start = 0;
+            while (cmd[start] == ' ' || cmd[start] == '\t') start++;
+            int end = k - 1;
+            while (end >= start && (cmd[end] == ' ' || cmd[end] == '\t')) end--;
+            char trimmed[128];
+            int tt = 0;
+            for (int t = start; t <= end && tt < 127; t++) trimmed[tt++] = cmd[t];
+            trimmed[tt] = '\0';
+
+            if (execute_single_command(trimmed) == 0)
+                return;
+            i++;
+            j = 0;
+            continue;
+        }
+        buf[j++] = command[i];
+    }
+    buf[j] = '\0';
+
+    {
+        char cmd[128];
+        int k = 0;
+        for (int t = 0; buf[t] != '\0' && k < 127; t++) cmd[k++] = buf[t];
+        cmd[k] = '\0';
+        int start = 0;
+        while (cmd[start] == ' ' || cmd[start] == '\t') start++;
+        int end = k - 1;
+        while (end >= start && (cmd[end] == ' ' || cmd[end] == '\t')) end--;
+        char trimmed[128];
+        int tt = 0;
+        for (int t = start; t <= end && tt < 127; t++) trimmed[tt++] = cmd[t];
+        trimmed[tt] = '\0';
+        execute_single_command(trimmed);
+    }
 }
 
 void set_p_shell(void)
 {
     int choose_p = 0;
-    print("1.Default (NwOS> )\n2.D disk (D:/>)\n3.C disk (C:/>)\n4.Custom\n");
+    print("1.Default (" OS_NAME "> )\n2.D disk (D:/>)\n3.C disk (C:/>)\n4.Custom\n5.Current disk (");
+    putchar_os(fs_get_drive_letter());
+    print(":/>)\n");
     print("|\n");
     print("----> ");
     choose_p = read_int();
     if (choose_p == 1) {
         print_success("Set to 'Default'\n");
         shell_p = 0;
-        cfg_strcpy(invite_user, "NwOS> ", 28);
+        cfg_strcpy(invite_user, OS_NAME "> ", 28);
     } else if (choose_p == 2) {
         print_success("Set to 'D disk'\n");
         shell_p = 1;
@@ -3053,6 +4148,10 @@ void set_p_shell(void)
         read_line(invite_user, 28);
         shell_p = 9;
         print_success("Set to custom invite\n");
+    } else if (choose_p == 5) {
+        print_success("Set to 'Current disk'\n");
+        shell_p = 3;
+        cfg_strcpy(invite_user, "drive", 28);
     } else {
         print_error("Invalid choose!\n");
         return;
@@ -3154,18 +4253,20 @@ void settings_load(void)
         if (cfg_find_key(buffer, "OS", value, sizeof(value)))
             cfg_strcpy(cfg_os, value, sizeof(cfg_os));
 
-        if (cfg_find_key(buffer, "version", value, sizeof(value)))
-            cfg_strcpy(cfg_version, value, sizeof(cfg_version));
+        /* the version is a build-time constant (OS_VERSION_STR), it is
+           not taken from the settings file */
 
         if (cfg_find_key(buffer, "prompt", value, sizeof(value)))
         {
             cfg_strcpy(invite_user, value, 28);
 
-            if (strcmp(value, "D:/> ") == 0)
+            if (strcmp(value, "drive") == 0)
+                shell_p = 3;
+            else if (strcmp(value, "D:/> ") == 0)
                 shell_p = 1;
             else if (strcmp(value, "C:/> ") == 0)
                 shell_p = 2;
-            else if (strcmp(value, "NwOS> ") == 0)
+            else if (strcmp(value, OS_NAME "> ") == 0)
                 shell_p = 0;
             else
                 shell_p = 9;
@@ -3228,8 +4329,11 @@ void settings_save(void)
 
     cfg_append(buffer, &pos, sizeof(buffer), "name", cfg_user);
     cfg_append(buffer, &pos, sizeof(buffer), "OS", cfg_os);
-    cfg_append(buffer, &pos, sizeof(buffer), "version", cfg_version);
-    cfg_append(buffer, &pos, sizeof(buffer), "prompt", invite_user);
+    cfg_append(buffer, &pos, sizeof(buffer), "version", OS_VERSION_STR);
+    if (shell_p == 3)
+        cfg_append(buffer, &pos, sizeof(buffer), "prompt", "drive");
+    else
+        cfg_append(buffer, &pos, sizeof(buffer), "prompt", invite_user);
     cfg_append(buffer, &pos, sizeof(buffer), "prompt_color", color_names[prompt_color & 0x0F]);
     cfg_append(buffer, &pos, sizeof(buffer), "color", color_names[base_color & 0x0F]);
     cfg_append(buffer, &pos, sizeof(buffer), "help_color", color_names[text_color & 0x0F]);
@@ -3239,16 +4343,40 @@ void settings_save(void)
     current_dir = prev_dir;
 }
 
+static const char* shell_prompt_text(void)
+{
+    static char drive_prompt[8];
+
+    if (shell_p == 0) return OS_NAME "> ";
+    if (shell_p == 1) return "D:/> ";
+    if (shell_p == 2) return "C:/> ";
+
+    if (shell_p == 3)
+    {
+        drive_prompt[0] = fs_get_drive_letter();
+        drive_prompt[1] = ':';
+        drive_prompt[2] = '/';
+        drive_prompt[3] = '>';
+        drive_prompt[4] = ' ';
+        drive_prompt[5] = '\0';
+
+        return drive_prompt;
+    }
+
+    return invite_user;
+}
+
 void cmd_settings(void)
 {
     print_title("\n=== SETTINGS ===\n\n");
     print("user        = "); print(cfg_user);        putchar_os('\n');
     print("os          = "); print(cfg_os);          putchar_os('\n');
-    print("version     = "); print(cfg_version);     putchar_os('\n');
-    print("prompt      = "); print(invite_user);     putchar_os('\n');
+    print("version     = "); print(OS_VERSION_STR);  putchar_os('\n');
+    print("prompt      = "); print(shell_prompt_text()); putchar_os('\n');
     print("prompt_color= "); print(color_names[prompt_color & 0x0F]); putchar_os('\n');
     print("color       = "); print(color_names[base_color & 0x0F]);   putchar_os('\n');
     print("help_color  = "); print(color_names[text_color & 0x0F]);   putchar_os('\n');
+    print("disk        = "); putchar_os(fs_get_drive_letter());      putchar_os('\n');
     putchar_os('\n');
 }
 
@@ -3299,15 +4427,7 @@ void change_p_color(void)
 
 void print_shell_p(void)
 {
-    if (shell_p == 0) {
-        print("NwOS> ");
-    } else if (shell_p == 1) {
-        print("D:/> ");
-    } else if (shell_p == 2) {
-        print("C:/> ");
-    } else if (shell_p == 9) {
-        print(invite_user);
-    }
+    print(shell_prompt_text());
 }
 
 void shell(void)
@@ -3366,47 +4486,214 @@ void run_gui(void) {
     print("GUI closed.\n");
 }
 
+static void print_size_bytes(unsigned long long bytes)
+{
+    if (bytes >= SIZE_GB)
+        print_size_unit(bytes, SIZE_GB, 2, "GB");
+    else if (bytes >= SIZE_MB)
+        print_size_unit(bytes, SIZE_MB, 2, "MB");
+    else if (bytes >= SIZE_KB)
+        print_size_unit(bytes, SIZE_KB, 2, "KB");
+    else
+    {
+        print_uint64(bytes);
+        print(" bytes");
+    }
+}
+
+static unsigned long long rootfs_total_size(void)
+{
+    unsigned long long total = 0;
+
+    for (int i = 0; i < ROOTFS_FILE_COUNT; i++)
+    {
+        total += rootfs_files[i].size;
+    }
+
+    return total;
+}
+
+static unsigned long long install_disk_usage(void)
+{
+    /* magic sector + directory sectors + one data sector per slot */
+    return (unsigned long long)(1 + FS_DIR_SECTORS + MAX_FILES) * 512ULL;
+}
+
+static void installer_print_disks(int selected)
+{
+    int n = ata_drive_count();
+
+    for (int i = 0; i < n; i++)
+    {
+        ata_drive_t* d = ata_get_drive(i);
+
+        print("    ");
+
+        if (selected == i) set_color(COLOR_LIGHT_GREEN);
+        else set_color(base_color);
+
+        print_int(i + 1);
+        print(") ");
+
+        putchar_os(d->letter);
+        print(":  ");
+
+        set_color(COLOR_WHITE);
+        print(d->model);
+        set_color(base_color);
+
+        print("   ");
+        print_size_bytes((unsigned long long)d->sectors * 512ULL);
+
+        if (fs_drive_has_fs(i))
+        {
+            set_color(COLOR_LIGHT_RED);
+            print("  [has " OS_NAME "]");
+            set_color(base_color);
+        }
+
+        if (selected == i) set_color(COLOR_LIGHT_GREEN);
+        else set_color(base_color);
+
+        putchar_os('\n');
+    }
+}
+
+static void cmd_install(void)
+{
+    installer_cancelled = 0;
+
+    installer();
+
+    if (installer_cancelled)
+    {
+        print("Installation cancelled. The system keeps running.\n");
+    }
+}
+
 void installer(void) {
     clear();
     fb_init();
     set_color(COLOR_CYAN);
     print("\n");
     print("  +======================================+\n");
-    print("  |     NwOS Installation Wizard 1.4.4   |\n");
+    print("  |     " OS_NAME " Installation Wizard " OS_VERSION_STR "   |\n");
     print("  +======================================+\n\n");
     set_color(base_color);
     
-    print("  Welcome! No filesystem was found on the primary disk.\n\n");
+    print("  Welcome! No " OS_NAME " filesystem was found.\n\n");
     
     int n = ata_drive_count();
-    print_title("  Detected disks:\n");
-    for (int i = 0; i < n; i++) {
-        ata_drive_t* d = ata_get_drive(i);
-        print("    ");
-        putchar_os(d->letter);
-        print(": ");
-        print(d->model);
-        print(" (");
-        print_int(d->sectors / 2048);
-        print(" MB)\n");
+
+    if (n == 0)
+    {
+        print_error("  No ATA disks detected!\n");
+        print("  Add one to QEMU: -drive file=disk.img,format=raw,if=ide,index=0\n");
+        installer_cancelled = 1;
+        return;
     }
-    
-    print("\n  This wizard will erase ALL data on C: drive.\n");
-    print("  Continue? (y/n): ");
-    
-    char buf[8];
-    read_line(buf, 8);
+
+    print_title("  Detected disks:\n");
+    installer_print_disks(-1);
+
+    print_title("\n  Installation size:\n");
+    print("    Files:       ");
+    print_int(ROOTFS_FILE_COUNT);
+    print("\n    Payload:     ");
+    print_size_bytes(rootfs_total_size());
+    print("\n    Disk usage:  ");
+    print_size_bytes(install_disk_usage());
+    print(" (");
+    print_int(1 + FS_DIR_SECTORS + MAX_FILES);
+    print(" sectors)\n");
+
+    char buf[32];
+    int sel = -1;
+
+    while (sel < 0)
+    {
+        print("\n  Select target disk (1-");
+        print_int(n);
+        print("), default 1: ");
+
+        read_line(buf, 32);
+
+        if (buf[0] == '\0')
+        {
+            sel = 1;
+            continue;
+        }
+
+        int value = atoi_simple(buf);
+
+        if (value < 1 || value > n)
+        {
+            print_error("  Invalid disk number.\n");
+            continue;
+        }
+
+        sel = value;
+    }
+
+    ata_drive_t* target = ata_get_drive(sel - 1);
+
+    if (target == 0)
+    {
+        print_error("\n  Disk is not available.\n");
+        installer_cancelled = 1;
+        return;
+    }
+
+    if (target->sectors < (unsigned int)(1 + FS_DIR_SECTORS + MAX_FILES))
+    {
+        print_error("\n  Disk is too small for " OS_NAME ".\n");
+        print("  Required: ");
+        print_size_bytes(install_disk_usage());
+        print(", available: ");
+        print_size_bytes((unsigned long long)target->sectors * 512ULL);
+        print("\n");
+        installer_cancelled = 1;
+        return;
+    }
+
+    print("\n  Target disk:\n");
+    installer_print_disks(sel - 1);
+
+    if (fs_drive_has_fs(sel - 1))
+    {
+        print_error("\n  WARNING: this disk already contains an " OS_NAME " installation.\n");
+    }
+
+    print("\n  ALL data on ");
+    putchar_os(target->letter);
+    print(": will be erased!\n  Continue? (y/n): ");
+
+    read_line(buf, 32);
     
     if (buf[0] != 'y' && buf[0] != 'Y') {
-        print_error("\n  Cancelled. System halted.\n");
-        while(1) __asm__ volatile("hlt");
+        print_error("\n  Cancelled. Nothing was changed.\n");
+        installer_cancelled = 1;
+        return;
     }
     
-    print_success("\n\n  Formatting C: ...\n");
+    print_success("\n\n  Installing to ");
+    putchar_os(target->letter);
+    print(": ...\n");
     sleep(500);
-    fs_format();
+
+    fs_format_disk(sel - 1);
     
     print_success("\n  Installation complete!\n");
+    print("  " OS_NAME " was installed on ");
+    putchar_os(target->letter);
+    print(":\n");
+    print("    Files:       ");
+    print_int(ROOTFS_FILE_COUNT);
+    print("\n    Payload:     ");
+    print_size_bytes(rootfs_total_size());
+    print("\n    Disk usage:  ");
+    print_size_bytes(install_disk_usage());
+    print("\n");
     print("  Rebooting in 3 seconds...\n");
     sleep(3000);
     reboot();
@@ -3457,6 +4744,9 @@ void kernel_main(void) {
 
     if (status == 0) {
         installer();
+
+        /* the installer reboots on success, so we only get here if it was cancelled */
+        while(1) __asm__ volatile("hlt");
         return;
     }
     
@@ -3467,7 +4757,7 @@ void kernel_main(void) {
     print("CLEARING...\n");
     startingNWOS();
     settings_load();
-    print("Starting NwOS...\n");
+    print("Starting " OS_NAME "...\n");
     sleep(500);
     print_success("Kernel Started!\n");
     print("Clearing..\n");
@@ -3481,7 +4771,7 @@ void kernel_main(void) {
     sleep(1500);
 
     print("================================\n");
-    print("        Welcome to NwOS 1.4.4\n");
+    print("        Welcome to " OS_NAME " " OS_VERSION_STR "\n");
     print("================================\n\n");
     set_color(COLOR_LIGHT_GREEN);
     print("copyright (c) User014015  2026\n\n");

@@ -1,254 +1,114 @@
 bits 16
-org 0x7C00
+org  0x7C00
+
+STAGE2_SEG      equ 0x07E0
+STAGE2_LBA      equ 1
+STAGE2_SECTORS  equ 8
+PART_COUNT_OFF  equ 458
 
 start:
-    cli
-    cld
-
+    cli   
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
     mov sp, 0x7C00
+    cld
+    sti
 
     mov [boot_drive], dl
 
-    mov ah, 0x0E
-    mov al, '1'
-    mov bh, 0
-    int 0x10
-
-    mov ax, 0x0003 
-    int 0x10
-
-    mov ax, 0x1112  
-    xor bx, bx
-    int 0x10
-
-    mov ah, 0x0E
-    mov al, '2'
-    mov bh, 0
-    int 0x10
-
-    mov si, loading_message
-
-print_loading:
-    lodsb
-    test al, al
-    jz check_edd
-
-    mov ah, 0x0E
-    mov bh, 0
-    int 0x10
-
-    jmp print_loading
-
-check_edd:
+    mov si, msg_banner
+    call print_str
 
     mov dl, [boot_drive]
-
     mov ah, 0x41
     mov bx, 0x55AA
     int 0x13
-
-    jc disk_error
-
+    jc  .no_edd
     cmp bx, 0xAA55
-    jne disk_error
-
+    jne .no_edd
     test cx, 1
-    jz disk_error
-    mov ah, 0x0E
-    mov al, '3'
-    mov bh, 0
-    int 0x10
+    jz  .no_edd
 
-    xor ah, ah
     mov dl, [boot_drive]
+    xor ah, ah
     int 0x13
 
-    jc disk_error
+    mov word  [dap + 2], STAGE2_SECTORS
+    mov word  [dap + 4], 0                  
+    mov word  [dap + 6], STAGE2_SEG
+    mov dword [dap + 8], STAGE2_LBA
+    mov dword [dap + 12], 0
 
-    mov ah, 0x0E
-    mov al, '4'
-    mov bh, 0
-    int 0x10
-
-    xor ax, ax
-    mov ds, ax
-    mov es, ax
-
-read_loop:
-    mov ax, [sectors_left]
-    test ax, ax
-    jz read_done
-    cmp ax, 64
-    jbe read_go
-    mov ax, 64
-read_go:
-    mov [chunk], ax
-    mov [disk_address_packet + 2], ax
-
-    mov si, disk_address_packet
+    mov si, dap
     mov dl, [boot_drive]
     mov ah, 0x42
     int 0x13
-    jc disk_error
+    jc  disk_error
 
-    movzx eax, word [chunk]
-    sub [sectors_left], ax
-    add [disk_address_packet + 8], eax      ; next LBA
-    shl ax, 5                               ; sectors * 512 / 16
-    add [disk_address_packet + 6], ax       ; next segment
-    jmp read_loop
-    
-read_done:
+    mov si, msg_ok
+    call print_str
 
-    mov ah, 0x0E
-    mov al, '5'
-    mov bh, 0
-    int 0x10
+    mov dl, [boot_drive]
+    jmp 0x0000:0x7E00
 
-    mov si, loaded_message
-
-print_loaded:
-    lodsb
-    test al, al
-    jz enter_protected_mode
-
-    mov ah, 0x0E
-    mov bh, 0
-    int 0x10
-
-    jmp print_loaded
+.no_edd:
+    mov si, msg_no_edd
+    call print_str
+    jmp hang
 
 disk_error:
+    mov si, msg_err
+    call print_str
 
-    mov si, error_message
+hang:
+    cli
+    hlt
+    jmp hang
 
-print_error:
+print_str:
     lodsb
     test al, al
-    jz boot_hang
+    jz   .done
+    mov  ah, 0x0E
+    mov  bh, 0
+    int  0x10
+    jmp  print_str
+.done:
+    ret
 
-    mov ah, 0x0E
-    mov bh, 0
-    int 0x10
+boot_drive: db 0
 
-    jmp print_error
-
-
-boot_hang:
-    cli
-    hlt
-    jmp boot_hang
-
-enter_protected_mode:
-    mov ah, 0x0E
-    mov al, '6'
-    mov bh, 0
-    int 0x10
-
-    cli
-
-    lgdt [gdt_descriptor]
-
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-
-    jmp 0x08:protected_mode
-
-bits 32
-
-protected_mode:
-
-    mov ax, 0x10
-
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
-
-    mov esp, 0x90000
-
-    mov edi, 0xB8000
-
-    mov word [edi + 0],  'P' | (0x0A << 8)
-    mov word [edi + 2],  'M' | (0x0A << 8)
-    mov word [edi + 4],  ' ' | (0x0A << 8)
-    mov word [edi + 6],  'O' | (0x0A << 8)
-    mov word [edi + 8],  'K' | (0x0A << 8)
-
-    mov eax, 0x10000
-    jmp eax
-
-
-protected_hang:
-    cli
-    hlt
-    jmp protected_hang
-
-bits 16
-
-boot_drive:
-    db 0
-
-sectors_left:
-    dw 242
-chunk:
-    dw 0
-
-loading_message:
-    db "Loading NwOS kernel...", 13, 10, 0
-
-loaded_message:
-    db "Kernel loaded!", 13, 10, 0
-
-error_message:
-    db "DISK ERROR!", 13, 10, 0
-
-disk_address_packet:
-
+align 2
+dap:
     db 0x10
-    db 0x00
-
-    dw 90
-
-    dw 0x0000  
-    dw 0x1000  
-
-    dd 1
+    db 0
+    dw 0
+    dw 0
+    dw 0
+    dd 0
     dd 0
 
-gdt_start:
+msg_banner: db "NwOS MBR bootloader", 13, 10, 0
+msg_ok:     db "Loading stage2...", 13, 10, 0
+msg_no_edd: db "ERR: no INT13 extensions (EDD).", 13, 10
+            db "Need a BIOS from 1998+ (or QEMU).", 13, 10, 0
+msg_err:    db "ERR: disk read failed.", 13, 10, 0
 
-gdt_null:
-    dq 0
+times 440 - ($ - $$) db 0
 
-gdt_code:
-    dw 0xFFFF
-    dw 0x0000
-    db 0x00
-    db 10011010b
-    db 11001111b
-    db 0x00
+disk_sig:   db 'N', 'w', 'O', 'S'
+reserved:   dw 0
 
-gdt_data:
-    dw 0xFFFF
-    dw 0x0000
-    db 0x00
-    db 10010010b
-    db 11001111b
-    db 0x00
+part_table:
+    db 0x80                   
+    db 0x00, 0x02, 0x00      
+    db 0x83 
+    db 0xFE, 0xFF, 0xFF
+    dd 1
+    dd 2047
 
-gdt_end:
+    times 48 db 0
 
-gdt_descriptor:
-    dw gdt_end - gdt_start - 1
-    dd gdt_start
-
-times 510 - ($ - $$) db 0
-
-dw 0xAA55
+dw 0xAA55 

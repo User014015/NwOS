@@ -17,8 +17,6 @@ echo
 BUILD=build
 TARGET=x86_64-unknown-none-elf
 
-MAX_KERNEL_SECTORS=199
-
 CFLAGS="--target=$TARGET -m64 -mno-red-zone -mcmodel=kernel -ffreestanding \
 -fno-stack-protector -fno-pic -fno-pie -fno-builtin -nostdlib \
 -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -Os \
@@ -43,13 +41,15 @@ SOURCES=(
     sys/kernel/network/timer.c
     sys/kernel/network/net.c
     sys/kernel/fb.c
+    sys/kernel/Apps/Games/snake.c
 )
 
 mkdir -p "$BUILD"
 mkdir -p img
 rm -f "$BUILD"/*.o "$BUILD"/kernel.elf "$BUILD"/kernel.bin
+rm -f NwOS.iso
 
-STEPS=$(( ${#SOURCES[@]} + 6 ))
+STEPS=$(( ${#SOURCES[@]} + 5 ))
 N=0
 step() { N=$((N + 1)); echo "[$N/$STEPS] $1"; }
 
@@ -78,40 +78,53 @@ step "Linking..."
 ld.lld -m elf_x86_64 -nostdlib -z noexecstack --gc-sections -T linker.ld \
     "${OBJS[@]}" -o "$BUILD/kernel.elf" || fail
 
-step "Creating ISO (text mode)..."
+step "Preparing ISO tree..."
+
 rm -rf iso
-mkdir -p iso/boot/grub
+mkdir -p iso/boot/limine
+mkdir -p iso/EFI/BOOT
+
 cp "$BUILD/kernel.elf" iso/boot/kernel.elf
 
-cat > iso/boot/grub/grub.cfg <<EOF
-set timeout=0
-set default=0
-set gfxpayload=text
+cp /usr/share/limine/limine-bios.sys        iso/boot/limine/ || fail
+cp /usr/share/limine/limine-bios-cd.bin     iso/boot/limine/ || fail
+cp /usr/share/limine/limine-uefi-cd.bin     iso/boot/limine/ || fail
+cp /usr/share/limine/BOOTX64.EFI            iso/EFI/BOOT/    || fail
+cp /usr/share/limine/BOOTIA32.EFI           iso/EFI/BOOT/    || fail
 
-menuentry "NwOS (text mode)" {
-    multiboot2 /boot/kernel.elf
-    boot
-}
+cat > iso/boot/limine/limine.conf <<EOF
+timeout: 0
+
+/NwOS
+    protocol: multiboot2
+    path: boot():/boot/kernel.elf
+    framebuffer: 640x400x32
 EOF
 
-grub-mkrescue -o NwOS.iso iso || fail
+step "Building ISO with xorriso..."
 
-step "Creating ISO (GUI mode)..."
-cat > iso/boot/grub/grub.cfg <<EOF
-set timeout=0
-set default=0
-set gfxpayload=640x400x32
+xorriso -as mkisofs -R -r -J \
+    -b boot/limine/limine-bios-cd.bin \
+    -no-emul-boot -boot-load-size 4 -boot-info-table \
+    -hfsplus -apm-block-size 2048 \
+    --efi-boot boot/limine/limine-uefi-cd.bin \
+    -efi-boot-part --efi-boot-image --protective-msdos-label \
+    iso -o NwOS.iso || fail
 
-menuentry "NwOS (GUI mode)" {
-    multiboot2 /boot/kernel.elf
-    boot
-}
-EOF
+if [ -x /usr/share/limine/limine ]; then
+    /usr/share/limine/limine bios-install NwOS.iso || fail
+fi
 
-grub-mkrescue -o NwOS-gui.iso iso || fail
+if [ ! -f NwOS.iso ]; then
+    echo "ERROR: ISO creation failed"
+    fail
+fi
 
 echo
 echo "============================"
 echo "      BUILD SUCCESS"
 echo "============================"
-ls -lh NwOS.iso NwOS-gui.iso "$BUILD/kernel.elf"
+ls -lh NwOS.iso "$BUILD/kernel.elf"
+echo
+echo "ISO contents in /boot/limine:"
+ls -la iso/boot/limine/

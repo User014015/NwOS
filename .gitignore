@@ -7,7 +7,12 @@
 
 *.exe
 *.nwo
+*.fd
 
 .vscode/
 .idea/
 build/
+compiler/builded/
+compiler/nwc
+rootfs/
+nwimg

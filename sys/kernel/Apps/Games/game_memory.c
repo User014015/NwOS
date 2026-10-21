@@ -55,4 +55,6 @@ void game_memory(void)
     print("Game over! Total score: ");
     print_int(score);
     print("\n\n");
+    extern void wait_key(void);
+    wait_key();
 }

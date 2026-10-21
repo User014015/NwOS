@@ -17,20 +17,16 @@ extern void putchar_os(char c);
 #define COLOR_WHITE      15
 #define COLOR_CYAN       11
 
-// Цвет 0x1F = Белый текст (F) на Синим фоне (1)
 #define PANIC_COLOR      0x1F 
 #define PANIC_BG         0x1F
 
-// Внутренние координаты для паники (80x50)
 static int p_x = 0;
 static int p_y = 0;
 
-// Очистка экрана синим цветом (напрямую через фреймбуфер)
 static void panic_clear(void) {
     p_x = 0;
     p_y = 0;
     
-    // Если фреймбуфер доступен, заливаем 80x50
     if (fb_is_available()) {
         for (int y = 0; y < 50; y++) {
             for (int x = 0; x < 80; x++) {
@@ -40,7 +36,6 @@ static void panic_clear(void) {
     }
 }
 
-// Прямой вывод символа без буферов терминала
 static void panic_putc(char c) {
     if (c == '\n') {
         p_x = 0;
@@ -59,14 +54,12 @@ static void panic_putc(char c) {
     }
 }
 
-// Прямой вывод строки
 static void panic_puts(const char* s) {
     while (*s) {
         panic_putc(*s++);
     }
 }
 
-// Вывод Hex-числа
 static void panic_hex(unsigned int v) {
     const char* hex = "0123456789ABCDEF";
     panic_puts("0x");
@@ -75,7 +68,6 @@ static void panic_hex(unsigned int v) {
     }
 }
 
-// Вывод числа (упрощенный)
 static void panic_int(int v) {
     char buf[12];
     int i = 0;
@@ -87,19 +79,12 @@ static void panic_int(int v) {
     while (i > 0) panic_putc(buf[--i]);
 }
 
-// Вспомогательная функция для смены цвета прямо в панике
 static void set_panic_color(unsigned char fg, unsigned char bg) {
-    // В fb_draw_char цвет передается как (bg << 4) | fg
-    // Мы не можем поменять глобальный цвет, но можем менять локальный.
-    // Для простоты в этой версии мы просто используем один общий цвет.
-    // Если нужен разноцветный вывод, можно добавить глобальную переменную для цвета.
     (void)fg; (void)bg;
 }
 
 static void panic_safe(const char* message, unsigned int code, const char* file, int line)
 {
-    // Обычный вывод (в историю, без заливки экрана)
-    // ... (оставляем как было, используя extern print) ...
 }
 
 static void panic_fatal(const char* message, unsigned int code, const char* file, int line)
@@ -108,7 +93,6 @@ static void panic_fatal(const char* message, unsigned int code, const char* file
 
     panic_clear();
 
-    // Верхняя рамка
     panic_puts("\n\n");
     panic_puts("  +============================================================================+\n");
     panic_puts("  |                                                                            |\n");
@@ -116,29 +100,23 @@ static void panic_fatal(const char* message, unsigned int code, const char* file
     panic_puts("  |                                                                            |\n");
     panic_puts("  +============================================================================+\n\n");
 
-    // Сообщение об ошибке
     panic_puts("   ERROR: ");
     panic_puts(message);
     panic_puts("\n\n");
 
-    // Код ошибки
     panic_puts("   CODE:  ");
     panic_hex(code);
     panic_puts("\n\n");
 
-    // Место
     panic_puts("   AT:    ");
     panic_puts(file);
     panic_puts(":");
     panic_int(line);
     panic_puts("\n\n");
 
-    // Нижняя рамка
     panic_puts("  +============================================================================+\n\n");
     
-    // Если код ERR_DEATH, выводим пасхалку
     if (code == 0x01111111) {
-        // Временно меняем цвет для пасхалки (если нужно)
         panic_puts("   * You just deleted the root filesystem. Why? *\n\n");
     }
 
@@ -174,7 +152,6 @@ void kernel_panic(const char* message, unsigned int code, const char* file, int 
     }
     else
     {
-        // Для safe паники используем обычный print (чтобы не ломать текущий вывод)
         extern void set_color(unsigned char);
         extern void set_base_color(unsigned char);
         extern void print(const char*);
@@ -183,7 +160,7 @@ void kernel_panic(const char* message, unsigned int code, const char* file, int 
         set_color(COLOR_WHITE);
         print(message);
         print(" (Code: ");
-        print_int(code); // Упрощенно, можно добавить hex в будущем
+        print_int(code);
         print(")\n");
         set_base_color(7);
     }

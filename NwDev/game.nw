@@ -1,0 +1,14 @@
+#include <nwc.h>
+
+1A main() {
+    nw::out << "I cant name this program as game :|" << nw::endl;
+    nw::out << "But, " << nw::endl;
+    nw::out << "Enter number: ";
+    1A data;
+    nw::cin >> data;
+
+    nw::out << "I think you typed: " << data << nw::endl;
+    nw::out << ":)" << nw::endl;
+
+    return 0;
+}

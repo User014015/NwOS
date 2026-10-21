@@ -1,0 +1,11 @@
+#include <nwc.h>
+
+1A main() {
+    1A g = 3;
+    nw::out << g << nw::endl;
+    
+    bol h = true;
+    nw::out << "H = " << h << nw::endl;
+
+    return 0;
+}

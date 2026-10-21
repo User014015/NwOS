@@ -398,23 +398,20 @@ static void fb_draw_image(int x, int y, const uint16_t* data, int w, int h) {
 void kernel_main(void) {
     fb_init();
     
-    // Заливаем фон темно-синим (как BSOD)
     if (fb_bpp == 32) {
         for (int y = 0; y < (int)fb_height; y++)
             for (int x = 0; x < (int)fb_width; x++)
                 putpixel(x, y, 0x000000AA);
                 
-        // Рисуем логотип по центру
         int lx = (fb_width - LOGO_WIDTH) / 2;
         int ly = (fb_height - LOGO_HEIGHT) / 2 - 50;
         fb_draw_image(lx, ly, LogoNwOS, LOGO_WIDTH, LOGO_HEIGHT);
     }
 
-    // Выведем текст прямо через VGA (на случай если фреймбуфер не сработал)
     volatile uint16_t* video = (volatile uint16_t*)0xB8000;
     const char* msg = " FATAL: NwOS Kernel could not be loaded! Check build logs. ";
     for (int i = 0; msg[i]; i++) {
-        video[22 * 80 + 10 + i] = (uint16_t)msg[i] | (0x4F << 8); // Белый на красном
+        video[22 * 80 + 10 + i] = (uint16_t)msg[i] | (0x4F << 8);
     }
     const char* msg2 = " Press Ctrl+Alt+Del to restart. ";
     for (int i = 0; msg2[i]; i++) {

@@ -1,9 +1,5 @@
 #include <nwc.h>
 
-// Not made GUI 
-// gonna be made later
-// (it already has VBE)
-
 
 1A main() {
     nw::rect(0, 0, 640, 400, 0x000080FF);

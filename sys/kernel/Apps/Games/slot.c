@@ -66,4 +66,6 @@ void game_slots(void)
     {
         print_error("You ran out of coins!\n");
     }
+    extern void wait_key(void);
+    wait_key();
 }
