@@ -15,4 +15,5 @@ build/
 compiler/builded/
 compiler/nwc
 rootfs/
+iso/
 nwimg
