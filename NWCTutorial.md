@@ -51,11 +51,15 @@ Basic syntax:
 
 
 Comments right now not supported.
-
+```code
 1A - int
+
 flt - float
+
 lng - long
+
 char var[32] - char (like C)
+
 str var - string
 
 #include <nwc.h>
@@ -65,3 +69,4 @@ nw::out << "Hey! << nw::endl;
 
 nw::cin >> var
 nw::line(nw::cin, var) // type all line
+```
