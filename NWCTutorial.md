@@ -37,47 +37,7 @@ compiler/builded/nwc
 
 ### 2.2. Написать программу
 
-<<<<<<< HEAD
 Создай файл, например `NwDev/hello.nw`:
-=======
-then run this: tools/nwimg.exe add NwOS.img NwDev/test.nw test.nw
-
-(make sure that: you has nwimg.exe at tools, or make your path)
-
-(make sure that: you has NwOS.img, and right path)
-
-(make sure that: you has: file.nw, or any other file with .nw at path: NwDev/)
-
-if you compiled right: launch NwOS from qemu -> type: run:
-
-
-run <your file name.nwo>
-
-
-
-make sure that file format is .nwo to launch it
-
-or you can edit .nw
-
-
-## NwC TUTORIAL
-
-Basic syntax:
-
-
-
-Comments right now not supported.
-```code
-1A - int
-
-flt - float
-
-lng - long
-
-char var[32] - char (like C)
-
-str var - string
->>>>>>> 4719702b001c90e4d18471d67b22ff5b3e56d123
 
 ```c
 #include <nwc.h>
@@ -87,8 +47,6 @@ str var - string
     return 0;
 }
 ```
-
-<<<<<<< HEAD
 ### 2.3. Скомпилировать
 
 ```bash
@@ -149,8 +107,6 @@ run hello.nwo
 Int is not supported by NwC, Do you mean '1A'?
 Void is not supported by NwC, Do you mean '0A'?
 ```
-
----
 
 ## 4. Типы данных
 
