@@ -35,6 +35,8 @@ compiler/builded/nwc
 
 ### 2.2. Написать программу
 
+Создай файл, например `NwDev/hello.nw`:
+
 ```c
 #include <nwc.h>
 
@@ -103,8 +105,6 @@ run hello.nwo
 Int is not supported by NwC, Do you mean '1A'?
 Void is not supported by NwC, Do you mean '0A'?
 ```
-
----
 
 ## 4. Типы данных
 
@@ -1004,7 +1004,7 @@ call hello("Bob");   // функция hello должна существоват
 9. Динамическое переключение разрешения без перезагрузки.
 
 Пока всё это — только планы. В гайде описано лишь то, что уже реально работает.
-
+=======
 nw::cin >> var
 nw::line(nw::cin, var) // type all line
 ```
