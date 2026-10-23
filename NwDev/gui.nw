@@ -105,9 +105,9 @@
                 nw::rect(win_x + win_w - 18, win_y + win_h - 12, 6, 2, 0x00A0A0A0);
             }
 
-            nw::rect(0, 690, 1280, 30, 0x00C0C0C0);
-            nw::rect(0, 690, 1280, 2, 0x00FFFFFF);
-            nw::rect(0, 692, 1280, 1, 0x00808080);
+            nw::rect(0, 696, 1280, 30, 0x00C0C0C0);
+            nw::rect(0, 696, 1280, 2, 0x00FFFFFF);
+            nw::rect(0, 694, 1280, 1, 0x00808080);
 
             nw::rect(4, 695, 88, 22, 0x00C0C0C0);
             nw::rect(5, 696, 86, 20, 0x00C0C0C0);
