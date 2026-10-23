@@ -9,6 +9,7 @@ typedef enum
     TOKEN_INCLUDE,
     TOKEN_HEADER,
     TOKEN_INT_TYPE,
+    TOKEN_VOID_TYPE,
     TOKEN_FLOAT_TYPE,
     TOKEN_BOOL_TYPE,
     TOKEN_LONG_TYPE,
@@ -24,6 +25,12 @@ typedef enum
     TOKEN_FOR,
     TOKEN_BREAK,
     TOKEN_CONTINUE,
+    TOKEN_CALL,
+    TOKEN_SLEEP,
+    TOKEN_ASM,
+    TOKEN_NONZERO,
+    TOKEN_CONST,
+    TOKEN_NEEDED,
 
     TOKEN_IDENTIFIER,
     TOKEN_NUMBER,
@@ -34,6 +41,7 @@ typedef enum
     TOKEN_NAMESPACE, /* nw */
     TOKEN_OUT,
     TOKEN_ENDL,
+    TOKEN_NO_ENDL,
     TOKEN_CIN,
     TOKEN_LINE,
     TOKEN_TIME,
@@ -41,7 +49,9 @@ typedef enum
     TOKEN_GETKEY,
     TOKEN_CLEAR,
     TOKEN_RECT,
+    TOKEN_DRAW,
     TOKEN_SCOPE,
+    TOKEN_COLON,
 	
     TOKEN_LOW,             /* low */
     TOKEN_OUT8,

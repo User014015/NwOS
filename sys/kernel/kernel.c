@@ -1,4 +1,5 @@
 #include "../../drivers/keyboard.h"
+#include "../../drivers/mouse.h"
 #include "../../drivers/disk.h"
 #include "../../include/kernelpanic.h"
 
@@ -16,7 +17,6 @@
 #include "Apps/baseconverter/baseconverter.h"
 #include "rootfs_data.h"
 
-#include "../../include/gui_embed.h"
 
 #include "network/net.h"
 
@@ -27,23 +27,12 @@
 
 #include "../../include/LogoNwOS.h"
 
+#include "font.h"
+
 #include "fb.h"
+#include "video_config.h"
 
 #include <stdint.h>
-
-// NWOS VERSIONS
-#define OS_NAME            "NwOS"
-#define OS_VERSION_MAJOR   1
-#define OS_VERSION_MINOR   4
-#define OS_VERSION_PATCH   5
-#define OS_MADE_DATE      "2026.08.27"
-
-#define OS_STR_HELPER(x)   #x
-#define OS_STR(x)          OS_STR_HELPER(x)
-
-#define OS_VERSION_STR     OS_STR(OS_VERSION_MAJOR) "." \
-                          OS_STR(OS_VERSION_MINOR) "." \
-                          OS_STR(OS_VERSION_PATCH)
 
 void disk_death(void);
 void game_snake(void);
@@ -72,6 +61,8 @@ void fs_rmdir(const char* name);
 void fs_rm(const char* args);
 void clear(void);
 void unknow_panic(unsigned int code);
+static const char* shell_prompt_text(void);
+static void shell_execute(const char* command);
 void nwo_run(const char* filename);
 void nwf_cpu_name(char* out);
 unsigned int nwf_ram_mb(void);
@@ -161,7 +152,7 @@ typedef unsigned short uint16_t;
 
 #define MAX_FILES 64
 #define MAX_FILENAME 32
-#define MAX_FILE_SIZE 2048
+#define MAX_FILE_SIZE 16384
 
 #define FS_TYPE_FILE 0
 #define FS_TYPE_DIR  1
@@ -181,29 +172,15 @@ typedef struct {
     void (*sleep)(unsigned int ms);
 } gui_api_t;
 
-#define COLOR_BLACK         0
-#define COLOR_BLUE          1
-#define COLOR_GREEN         2
-#define COLOR_CYAN          3
-#define COLOR_RED           4
-#define COLOR_MAGENTA      5
-#define COLOR_BROWN         6
-#define COLOR_LIGHT_GRAY   7
-#define COLOR_DARK_GRAY    8
-#define COLOR_LIGHT_BLUE   9
-#define COLOR_LIGHT_GREEN 10
-#define COLOR_LIGHT_CYAN  11
-#define COLOR_LIGHT_RED   12
-#define COLOR_LIGHT_MAGENTA 13
-#define COLOR_YELLOW      14
-#define COLOR_WHITE       15
-
+#define FS_FILE_SECTORS 32
 #define FS_MAGIC_LBA   199
 #define FS_MAGIC_VALUE 0x4E774653  // "NwFS"
 #define FS_SEQ_OFFSET  4           /* install sequence inside the magic sector */
 
 static DirEntry directory[MAX_FILES];
 static uint16_t current_dir = 0;
+
+static int fb_graphics_mode = 0;
 
 static unsigned char text_color = COLOR_LIGHT_GRAY;
 static unsigned char base_color = COLOR_LIGHT_GRAY;
@@ -320,9 +297,12 @@ void render_view(void)
         pad = HEIGHT - shown;
     }
 
-    for (int row = 0; row < pad; row++)
-        for (int x = 0; x < WIDTH; x++)
-            fb_draw_char(x, row, ' ', COLOR_LIGHT_GRAY);
+    if (!fb_graphics_mode)
+    {
+        for (int row = 0; row < pad; row++)
+            for (int x = 0; x < WIDTH; x++)
+                fb_draw_char(x, row, ' ', COLOR_LIGHT_GRAY);
+    }
 
     for (int i = 0; i < shown; i++)
     {
@@ -330,13 +310,19 @@ void render_view(void)
         for (int x = 0; x < WIDTH; x++)
         {
             uint16_t cell = line_buffer[idx][x];
-            fb_draw_char(x, pad + i, cell & 0xFF, (cell >> 8) & 0xFF);
+            if (fb_graphics_mode)
+                fb_draw_char_transparent(x, pad + i, cell & 0xFF, (cell >> 8) & 0xFF);
+            else
+                fb_draw_char(x, pad + i, cell & 0xFF, (cell >> 8) & 0xFF);
         }
     }
     
     int cy = pad + shown - 1;
     if (cy >= 0 && cy < HEIGHT) {
-        fb_draw_char(cursor_col, cy, '_', COLOR_WHITE);
+        if (fb_graphics_mode)
+            fb_draw_char_transparent(cursor_col, cy, '_', COLOR_WHITE);
+        else
+            fb_draw_char(cursor_col, cy, '_', COLOR_WHITE);
     }
 }
 static void cmd_mem(void)
@@ -489,11 +475,49 @@ static void cmd_time_cmd(void)
     putchar_os('\n');
 }
 
-void clear(void)
+void graphics_begin(void)
 {
+    if (fb_graphics_mode)
+        return;
+
+    fb_graphics_mode = 1;
+
+    fb_clear(0x000000);
     line_start = 0;
     line_count = 0;
     view_offset = 0;
+    cursor_col = 0;
+
+    terminal_new_line();
+}
+
+void graphics_end(void)
+{
+    if (!fb_graphics_mode)
+        return;
+
+    fb_graphics_mode = 0;
+
+    fb_clear(0x000000);
+    line_start = 0;
+    line_count = 0;
+    view_offset = 0;
+    cursor_col = 0;
+
+    terminal_new_line();
+    render_view();
+}
+
+void clear(void)
+{
+    fb_graphics_mode = 0;
+
+    line_start = 0;
+    line_count = 0;
+    view_offset = 0;
+    cursor_col = 0;
+
+    fb_clear(0x000000);
 
     terminal_new_line();
     render_view();
@@ -523,6 +547,13 @@ void putchar_os(char c)
     if (c == '\n')
     {
         terminal_new_line();
+        render_view();
+        return;
+    }
+
+    if (c == '\r')
+    {
+        cursor_col = 0;
         render_view();
         return;
     }
@@ -828,115 +859,6 @@ void game_guess(void)
     }
 }
 
-void game_rps(void)
-{
-    char choice[32];
-
-    int player_score = 0;
-    int computer_score = 0;
-
-    print_title("\n=== ROCK PAPER SCISSORS ===\n");
-    print("First to 3 wins!\n");
-    print("Type rock, paper or scissors.\n");
-    print("Type quit to exit.\n\n");
-
-    while (player_score < 3 &&
-           computer_score < 3)
-    {
-        print("Your choice: ");
-        read_line(choice, 32);
-
-        if (strcmp(choice, "quit") == 0)
-            return;
-
-        int computer = random_range(0, 2);
-
-        print("Computer: ");
-
-        if (computer == 0)
-            print("rock\n");
-        else if (computer == 1)
-            print("paper\n");
-        else
-            print("scissors\n");
-
-
-        if (strcmp(choice, "rock") == 0)
-        {
-            if (computer == 0)
-            {
-                print("Draw!\n");
-            }
-            else if (computer == 1)
-            {
-                print_error("You lose!\n");
-                computer_score++;
-            }
-            else
-            {
-                print_success("You win!\n");
-                player_score++;
-            }
-        }
-
-        else if (strcmp(choice, "paper") == 0)
-        {
-            if (computer == 0)
-            {
-                print_success("You win!\n");
-                player_score++;
-            }
-            else if (computer == 1)
-            {
-                print("Draw!\n");
-            }
-            else
-            {
-                print_error("You lose!\n");
-                computer_score++;
-            }
-        }
-
-        else if (strcmp(choice, "scissors") == 0)
-        {
-            if (computer == 0)
-            {
-                print_error("You lose!\n");
-                computer_score++;
-            }
-            else if (computer == 1)
-            {
-                print_success("You win!\n");
-                player_score++;
-            }
-            else
-            {
-                print("Draw!\n");
-            }
-        }
-
-        else
-        {
-            print_error("Unknown choice!\n");
-        }
-
-        print("Score: ");
-        print_int(player_score);
-
-        print(" - ");
-
-        print_int(computer_score);
-
-        print("\n\n");
-    }
-
-    if (player_score == 3)
-        print_success("You won the match!\n");
-    else
-        print_error("Computer won the match!\n");
-    wait_key();
-}
-
 void game_guessh(void)
 {
     char bufferh[32];
@@ -974,50 +896,6 @@ void game_guessh(void)
         else
             print("Too big!\n");
     }
-}
-
-void game_coin(void)
-{
-    char input[16];
-    int result;
-
-    print_title("\n=== COIN FLIP ===\n\n");
-
-    print("Choose:\n");
-    print("1 - Heads\n");
-    print("2 - Tails\n\n");
-
-    print("Your choice: ");
-    read_line(input, 16);
-
-    if (strcmp(input, "1") != 0 &&
-        strcmp(input, "2") != 0)
-    {
-        print_error("Invalid choice.\n");
-        return;
-    }
-
-    result = rand_simple() % 2;
-
-    print("\nCoin: ");
-
-    if (result == 0)
-        print("Heads\n");
-    else
-        print("Tails\n");
-
-    if ((result == 0 && input[0] == '1') ||
-        (result == 1 && input[0] == '2'))
-    {
-        print_success("You win!\n");
-    }
-    else
-    {
-        print_error("You lose!\n");
-    }
-
-    putchar_os('\n');
-    wait_key();
 }
 
 void game_dice(void)
@@ -1649,104 +1527,6 @@ void Calc(void)
     putchar_os('\n');
 }
 
-static const uint8_t font8x8_basic[128][8] = {
-    [' ']={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
-    ['!']={0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00},
-    ['"']={0x36,0x36,0x00,0x00,0x00,0x00,0x00,0x00},
-    ['#']={0x36,0x36,0x7F,0x36,0x7F,0x36,0x36,0x00},
-    ['$']={0x0C,0x3E,0x03,0x1E,0x30,0x1F,0x0C,0x00},
-    ['%']={0x00,0x63,0x33,0x18,0x0C,0x66,0x63,0x00},
-    ['&']={0x1C,0x36,0x1C,0x6E,0x3B,0x33,0x6E,0x00},
-    ['\'']={0x06,0x06,0x03,0x00,0x00,0x00,0x00,0x00},
-    ['(']={0x18,0x0C,0x06,0x06,0x06,0x0C,0x18,0x00},
-    [')']={0x06,0x0C,0x18,0x18,0x18,0x0C,0x06,0x00},
-    ['*']={0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00},
-    ['+']={0x00,0x0C,0x0C,0x3F,0x0C,0x0C,0x00,0x00},
-    [',']={0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x06},
-    ['-']={0x00,0x00,0x00,0x3F,0x00,0x00,0x00,0x00},
-    ['.']={0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x00},
-    ['/']={0x60,0x30,0x18,0x0C,0x06,0x03,0x01,0x00},
-    ['0']={0x3E,0x63,0x73,0x7B,0x6F,0x67,0x3E,0x00},
-    ['1']={0x0C,0x0E,0x0C,0x0C,0x0C,0x0C,0x3F,0x00},
-    ['2']={0x1E,0x33,0x30,0x1C,0x06,0x33,0x3F,0x00},
-    ['3']={0x1E,0x33,0x30,0x1C,0x30,0x33,0x1E,0x00},
-    ['4']={0x38,0x3C,0x36,0x33,0x7F,0x30,0x78,0x00},
-    ['5']={0x3F,0x03,0x1F,0x30,0x30,0x33,0x1E,0x00},
-    ['6']={0x1C,0x06,0x03,0x1F,0x33,0x33,0x1E,0x00},
-    ['7']={0x3F,0x33,0x30,0x18,0x0C,0x0C,0x0C,0x00},
-    ['8']={0x1E,0x33,0x33,0x1E,0x33,0x33,0x1E,0x00},
-    ['9']={0x1E,0x33,0x33,0x3F,0x30,0x18,0x0E,0x00},
-    [':']={0x00,0x0C,0x0C,0x00,0x00,0x0C,0x0C,0x00},
-    [';']={0x00,0x0C,0x0C,0x00,0x00,0x0C,0x0C,0x06},
-    ['<']={0x18,0x0C,0x06,0x03,0x06,0x0C,0x18,0x00},
-    ['=']={0x00,0x00,0x3F,0x00,0x3F,0x00,0x00,0x00},
-    ['>']={0x06,0x0C,0x18,0x30,0x18,0x0C,0x06,0x00},
-    ['?']={0x1E,0x33,0x30,0x18,0x0C,0x00,0x0C,0x00},
-    ['@']={0x3E,0x63,0x7B,0x7B,0x7B,0x03,0x1E,0x00},
-    ['A']={0x0C,0x1E,0x33,0x33,0x3F,0x33,0x33,0x00},
-    ['B']={0x3F,0x66,0x66,0x3E,0x66,0x66,0x3F,0x00},
-    ['C']={0x3C,0x66,0x03,0x03,0x03,0x66,0x3C,0x00},
-    ['D']={0x1F,0x36,0x66,0x66,0x66,0x36,0x1F,0x00},
-    ['E']={0x7F,0x46,0x16,0x1E,0x16,0x46,0x7F,0x00},
-    ['F']={0x7F,0x46,0x16,0x1E,0x16,0x06,0x0F,0x00},
-    ['G']={0x3C,0x66,0x03,0x03,0x73,0x66,0x7C,0x00},
-    ['H']={0x33,0x33,0x33,0x3F,0x33,0x33,0x33,0x00},
-    ['I']={0x1E,0x0C,0x0C,0x0C,0x0C,0x0C,0x1E,0x00},
-    ['J']={0x78,0x30,0x30,0x30,0x33,0x33,0x1E,0x00},
-    ['K']={0x67,0x66,0x36,0x1E,0x36,0x66,0x67,0x00},
-    ['L']={0x0F,0x06,0x06,0x06,0x46,0x66,0x7F,0x00},
-    ['M']={0x63,0x77,0x7F,0x7F,0x6B,0x63,0x63,0x00},
-    ['N']={0x63,0x67,0x6F,0x7B,0x73,0x63,0x63,0x00},
-    ['O']={0x1C,0x36,0x63,0x63,0x63,0x36,0x1C,0x00},
-    ['P']={0x3F,0x66,0x66,0x3E,0x06,0x06,0x0F,0x00},
-    ['Q']={0x1E,0x33,0x33,0x33,0x3B,0x1E,0x38,0x00},
-    ['R']={0x3F,0x66,0x66,0x3E,0x36,0x66,0x67,0x00},
-    ['S']={0x1E,0x33,0x07,0x0E,0x38,0x33,0x1E,0x00},
-    ['T']={0x3F,0x2D,0x0C,0x0C,0x0C,0x0C,0x1E,0x00},
-    ['U']={0x33,0x33,0x33,0x33,0x33,0x33,0x3F,0x00},
-    ['V']={0x33,0x33,0x33,0x33,0x33,0x1E,0x0C,0x00},
-    ['W']={0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00},
-    ['X']={0x63,0x63,0x36,0x1C,0x1C,0x36,0x63,0x00},
-    ['Y']={0x33,0x33,0x33,0x1E,0x0C,0x0C,0x1E,0x00},
-    ['Z']={0x7F,0x63,0x31,0x18,0x4C,0x66,0x7F,0x00},
-    ['[']={0x1E,0x06,0x06,0x06,0x06,0x06,0x1E,0x00},
-    ['\\']={0x03,0x06,0x0C,0x18,0x30,0x60,0x40,0x00},
-    [']']={0x1E,0x18,0x18,0x18,0x18,0x18,0x1E,0x00},
-    ['^']={0x08,0x1C,0x36,0x63,0x00,0x00,0x00,0x00},
-    ['_']={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF},
-    ['`']={0x0C,0x0C,0x18,0x00,0x00,0x00,0x00,0x00},
-    ['a']={0x00,0x00,0x1E,0x30,0x3E,0x33,0x6E,0x00},
-    ['b']={0x07,0x06,0x06,0x3E,0x66,0x66,0x3B,0x00},
-    ['c']={0x00,0x00,0x1E,0x33,0x03,0x33,0x1E,0x00},
-    ['d']={0x38,0x30,0x30,0x3e,0x33,0x33,0x6E,0x00},
-    ['e']={0x00,0x00,0x1E,0x33,0x3f,0x03,0x1E,0x00},
-    ['f']={0x1C,0x36,0x06,0x0f,0x06,0x06,0x0F,0x00},
-    ['g']={0x00,0x00,0x6E,0x33,0x33,0x3E,0x30,0x1F},
-    ['h']={0x07,0x06,0x36,0x6E,0x66,0x66,0x67,0x00},
-    ['i']={0x0C,0x00,0x0E,0x0C,0x0C,0x0C,0x1E,0x00},
-    ['j']={0x30,0x00,0x30,0x30,0x30,0x33,0x33,0x1E},
-    ['k']={0x07,0x06,0x66,0x36,0x1E,0x36,0x67,0x00},
-    ['l']={0x0E,0x0C,0x0C,0x0C,0x0C,0x0C,0x1E,0x00},
-    ['m']={0x00,0x00,0x33,0x7F,0x7F,0x6B,0x63,0x00},
-    ['n']={0x00,0x00,0x1F,0x33,0x33,0x33,0x33,0x00},
-    ['o']={0x00,0x00,0x1E,0x33,0x33,0x33,0x1E,0x00},
-    ['p']={0x00,0x00,0x3B,0x66,0x66,0x3E,0x06,0x0F},
-    ['q']={0x00,0x00,0x6E,0x33,0x33,0x3E,0x30,0x78},
-    ['r']={0x00,0x00,0x3B,0x6E,0x66,0x06,0x0F,0x00},
-    ['s']={0x00,0x00,0x3E,0x03,0x1E,0x30,0x1F,0x00},
-    ['t']={0x08,0x0C,0x3E,0x0C,0x0C,0x2C,0x18,0x00},
-    ['u']={0x00,0x00,0x33,0x33,0x33,0x33,0x6E,0x00},
-    ['v']={0x00,0x00,0x33,0x33,0x33,0x1E,0x0C,0x00},
-    ['w']={0x00,0x00,0x63,0x6B,0x7F,0x7F,0x36,0x00},
-    ['x']={0x00,0x00,0x63,0x36,0x1C,0x36,0x63,0x00},
-    ['y']={0x00,0x00,0x33,0x33,0x33,0x3E,0x30,0x1F},
-    ['z']={0x00,0x00,0x3F,0x19,0x0C,0x26,0x3F,0x00},
-    ['{']={0x38,0x0C,0x0C,0x07,0x0C,0x0C,0x38,0x00},
-    ['|']={0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00},
-    ['}']={0x07,0x0C,0x0C,0x38,0x0C,0x0C,0x07,0x00},
-    ['~']={0x6E,0x3B,0x00,0x00,0x00,0x00,0x00,0x00},
-};
-
 void dateCr()
 {
     set_color(COLOR_WHITE);
@@ -1783,6 +1563,10 @@ void game_word(void)
 }
 static void port_outb(unsigned short port, unsigned char val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
+static void port_outw(unsigned short port, unsigned short val) {
+    __asm__ volatile ("outw %0, %1" : : "a"(val), "Nd"(port));
 }
 static unsigned char port_inb(unsigned short port) {
     unsigned char ret;
@@ -2171,6 +1955,21 @@ void reboot(void)
     }
 }
 
+void poweroff(void)
+{
+    __asm__ volatile ("cli");
+
+    port_outw(0x604, 0x2000);
+    port_outw(0x604, 0x3400);
+    port_outw(0xB004, 0x2000);
+    port_outw(0x4004, 0x3400);
+
+    while (1)
+    {
+        __asm__ volatile ("hlt");
+    }
+}
+
 static DirEntry directory[MAX_FILES];
 
 static int fs_current_drive = 0;
@@ -2301,6 +2100,72 @@ int fs_change_drive(int idx)
     }
 
     return 0;
+}
+
+void change_p_color(void)
+{
+    int choose_c;
+
+    print("Prompt color:\n");
+
+    set_color(COLOR_CYAN);           print("1. cyan (default)\n");
+    set_color(COLOR_RED);            print("2. red\n");
+    set_color(COLOR_GREEN);          print("3. green\n");
+    set_color(COLOR_BLUE);           print("4. blue\n");
+    set_color(COLOR_MAGENTA);        print("5. magenta\n");
+    set_color(COLOR_BROWN);          print("6. brown\n");
+    set_color(COLOR_LIGHT_GRAY);     print("7. light gray\n");
+    set_color(COLOR_DARK_GRAY);      print("8. dark gray\n");
+    set_color(COLOR_LIGHT_BLUE);     print("9. light blue\n");
+    set_color(COLOR_LIGHT_GREEN);    print("10. light green\n");
+    set_color(COLOR_LIGHT_CYAN);     print("11. light cyan\n");
+    set_color(COLOR_LIGHT_RED);      print("12. light red\n");
+    set_color(COLOR_LIGHT_MAGENTA);  print("13. light magenta\n");
+    set_color(COLOR_YELLOW);         print("14. yellow\n");
+    set_color(COLOR_WHITE);          print("15. white\n");
+    set_color(COLOR_BLACK);          print("16. black\n");
+
+    set_color(base_color);
+    print("Color: ");
+    choose_c = read_int();
+
+    if (choose_c < 1 || choose_c > 16)
+    {
+        print_error("Invalid choose!\n");
+        return;
+    }
+
+    prompt_color = (unsigned char)(choose_c - 1);
+
+    settings_save();
+
+    print_success("Prompt color set\n");
+    print("Preview: ");
+    set_color(prompt_color);
+    print_shell_p();
+    set_color(base_color);
+    putchar_os('\n');
+}
+
+void print_shell_p(void)
+{
+    print(shell_prompt_text());
+}
+
+void shell(void)
+{
+    char command[128];
+
+    while (1)
+    {
+        set_color(prompt_color);
+        print_shell_p();
+        set_color(base_color);
+
+        read_line(command, 128);
+
+        shell_execute(command);
+    }
 }
 
 int fs_change_drive_letter(char letter)
@@ -2478,7 +2343,7 @@ void fs_format_disk(int drive_idx) {
 
     unsigned int seq = fs_max_seq() + 1;
 
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_FILES * FS_FILE_SECTORS; i++) {
         ata_write_sector_d(fs_current_drive, FS_DATA_LBA + i, zero);
     }
     
@@ -2533,9 +2398,23 @@ void fs_format_disk(int drive_idx) {
             int idx = fs_find(file_name);
             if (idx != -1) {
                 unsigned char sector[512];
-                for (int k = 0; k < 512; k++) sector[k] = 0;
-                for (unsigned int k = 0; k < size && k < 511; k++) sector[k] = data[k];
-                ata_write_sector_d(fs_current_drive, FS_DATA_LBA + idx, sector);
+
+                for (unsigned int s = 0; s < FS_FILE_SECTORS; s++) {
+                    unsigned int offset = s * 512;
+                    if (offset >= size)
+                        break;
+
+                    for (int k = 0; k < 512; k++) sector[k] = 0;
+
+                    for (unsigned int k = 0; k < 512 && offset + k < size; k++)
+                        sector[k] = data[offset + k];
+
+                    ata_write_sector_d(
+                        fs_current_drive,
+                        FS_DATA_LBA + idx * FS_FILE_SECTORS + s,
+                        sector);
+                }
+
                 directory[idx].size = size;
             }
         }
@@ -2574,6 +2453,17 @@ int fs_read_binary(
     unsigned char* buffer,
     unsigned int max_size
 );
+
+unsigned int fs_get_file_size(const char* name)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+        return 0;
+
+    return directory[index].size;
+}
+
 static void print_hex_byte(unsigned char b)
 {
     const char hex[] = "0123456789ABCDEF";
@@ -2665,115 +2555,6 @@ void app_nwo_info(const char* filename)
     print_hex_byte(buffer[0]);
     print("\nStatus: Valid binary image loaded into memory.\n");
     print("===============================\n\n");
-}
-
-void fs_create(const char* name) {
-    if (name[0] == '\0') {
-        print_error("Filename is empty.\n");
-        return;
-    }
-
-    for (int i = 0; i < MAX_FILES; i++) {
-        if (directory[i].used && directory[i].parent == current_dir && strcmp(directory[i].name, name) == 0) {
-            print_error("File already exists.\n");
-            return;
-        }
-    }
-
-    for (int i = 1; i < MAX_FILES; i++) {
-        if (!directory[i].used) {
-            directory[i].used = 1;
-            directory[i].type = FS_TYPE_FILE;
-            directory[i].parent = current_dir;
-            strcpy(directory[i].name, name);
-            directory[i].size = 0;
-
-            unsigned char empty[512];
-            for (int k = 0; k < 512; k++) empty[k] = 0;
-            ata_write_sector_d(fs_current_drive, FS_DATA_LBA + i, empty);
-
-            fs_save_directory();
-            if (!fs_quiet) print_success("File created.\n");
-            return;
-        }
-    }
-    print_error("No free file slots.\n");
-}
-
-void fs_mkdir(const char* name) {
-    if (name[0] == '\0') {
-        print_error("Directory name is empty.\n");
-        return;
-    }
-
-    for (int i = 0; i < MAX_FILES; i++) {
-        if (directory[i].used && directory[i].parent == current_dir && strcmp(directory[i].name, name) == 0) {
-            print_error("Directory already exists.\n");
-            return;
-        }
-    }
-
-    for (int i = 1; i < MAX_FILES; i++) {
-        if (!directory[i].used) {
-            directory[i].used = 1;
-            directory[i].type = FS_TYPE_DIR;
-            directory[i].parent = current_dir;
-            strcpy(directory[i].name, name);
-            directory[i].size = 0;
-
-            fs_save_directory();
-            if (!fs_quiet) print_success("Directory created.\n");
-            return;
-        }
-    }
-    print_error("No free file slots.\n");
-}
-
-void fs_ls(void) {
-    print_title("\n=== DIRECTORY ===\n\n");
-    int found = 0;
-    for (int i = 0; i < MAX_FILES; i++) {
-        if (directory[i].used && directory[i].parent == current_dir && i != 0) {
-            if (directory[i].type == FS_TYPE_DIR) {
-                set_color(COLOR_LIGHT_BLUE);
-                print("  [DIR]  ");
-                print(directory[i].name);
-                print("/\n");
-                set_color(base_color);
-            } else {
-                print("  [FILE] ");
-                print(directory[i].name);
-                print(" (");
-                print_int((int)directory[i].size);
-                print(" bytes)\n");
-            }
-            found = 1;
-        }
-    }
-    if (!found) print("  (empty)\n");
-    putchar_os('\n');
-}
-
-void fs_cd(const char* name) {
-    if (strcmp(name, "..") == 0) {
-        if (current_dir != 0) current_dir = directory[current_dir].parent;
-        return;
-    }
-    
-    if (name[0] == '/') {
-        current_dir = 0;
-    }
-    
-    const char* search_name = name;
-    if (name[0] == '/') search_name = name + 1;
-
-    for (int i = 0; i < MAX_FILES; i++) {
-        if (directory[i].used && directory[i].type == FS_TYPE_DIR && 
-            strcmp(directory[i].name, search_name) == 0) {
-            current_dir = i;
-            return;
-        }
-    }
 }
 
 void generate_num(void) {
@@ -2945,136 +2726,6 @@ void games_menu(void)
             sleep(1000);
         }
     }
-}
-
-void apps_list() {
-    print("                 o-------------------------o\n");
-    print("                 |                         |\n");
-    print("                 |        1.Filestats      |\n");
-    print("                 |        2.base converter |\n");
-    print("                 |                         |\n");
-    print("                 |                         |\n");
-    print("                 |                         |\n");
-    print("                 |                         |\n");
-    print("                 |       0.exit            |\n");
-    print("                 o-------------------------o\n");
-    char choose[5];
-    read_line(choose, 5);
-    if (strcmp(choose, "1") == 0) { clear(); app_file_stats(); }
-    else if (strcmp(choose, "2") == 0) { clear(); app_base_converter(); }
-    else if (strcmp(choose, "0") == 0) {}
-}
-
-void fs_store_data(int index, const char* text, const char* success_message)
-{
-    unsigned char buffer[512];
-
-    int i = 0;
-
-    while (text[i] != '\0' &&
-           i < MAX_FILE_SIZE - 1)
-    {
-        buffer[i] = text[i];
-        i++;
-    }
-
-    buffer[i] = '\0';
-
-    for (int k = i + 1; k < 512; k++)
-    {
-        buffer[k] = 0;
-    }
-
-    directory[index].size = (unsigned int)i;
-
-    ata_write_sector_d(fs_current_drive, FS_DATA_LBA + index, buffer);
-    fs_save_directory();
-
-    if (text[i] != '\0')
-    {
-        print_error("Text is too long. Maximum is 512 characters.\n");
-        return;
-    }
-
-    print_success(success_message);
-}
-
-void fs_write(const char* name, const char* text)
-{
-    int index = fs_find(name);
-
-    if (index == -1)
-    {
-        print_error("File not found.\n");
-        return;
-    }
-
-    fs_store_data(index, text, "File written.\n");
-}
-
-void fs_read(const char* name)
-{
-    int index = fs_find(name);
-
-    if (index == -1)
-    {
-        print_error("File not found.\n");
-        return;
-    }
-
-    unsigned char buffer[512];
-
-    ata_read_sector_d(fs_current_drive, FS_DATA_LBA + index, buffer);
-    buffer[511] = '\0';
-
-    print_title("\n--- ");
-    print(directory[index].name);
-    print(" ---\n");
-
-    print((const char*)buffer);
-
-    putchar_os('\n');
-
-    print_title("--- END ---\n\n");
-}
-
-void fs_edit(const char* name, const char* text)
-{
-    int index = fs_find(name);
-
-    if (index == -1)
-    {
-        print_error("File not found.\n");
-        return;
-    }
-
-    fs_store_data(index, text, "File edited.\n");
-}
-
-void fs_delete(const char* name)
-{
-    int index = fs_find(name);
-
-    if (index == -1)
-    {
-        print_error("File not found.\n");
-        return;
-    }
-
-    if (directory[index].type == FS_TYPE_DIR)
-    {
-        print_error("Is a directory. Use 'rmdir' to remove it.\n");
-        return;
-    }
-
-    directory[index].used = 0;
-
-    directory[index].name[0] = '\0';
-    directory[index].size = 0;
-
-    fs_save_directory();
-
-    print_success("File deleted.\n");
 }
 
 static uint16_t fs_removed[MAX_FILES];
@@ -3280,6 +2931,7 @@ int fs_read_text(
     unsigned char sector[512];
     unsigned int size;
     unsigned int copy_size;
+    unsigned int copied = 0;
 
     if (buffer == 0 || max_size == 0)
         return 0;
@@ -3291,21 +2943,31 @@ int fs_read_text(
     if (index == -1)
         return 0;
 
-    ata_read_sector_d(
-        fs_current_drive,
-        FS_DATA_LBA + index,
-        sector
-    );
-
     size = directory[index].size;
     if (size >= max_size)
         copy_size = max_size - 1;
     else
         copy_size = size;
 
-    for (unsigned int i = 0; i < copy_size; i++)
+    while (copied < copy_size)
     {
-        buffer[i] = (char)sector[i];
+        unsigned int sector_index = copied / 512;
+        unsigned int sector_offset = copied % 512;
+        unsigned int chunk = 512 - sector_offset;
+
+        if (chunk > copy_size - copied)
+            chunk = copy_size - copied;
+
+        ata_read_sector_d(
+            fs_current_drive,
+            FS_DATA_LBA + index * FS_FILE_SECTORS + sector_index,
+            sector
+        );
+
+        for (unsigned int i = 0; i < chunk; i++)
+            buffer[copied + i] = (char)sector[sector_offset + i];
+
+        copied += chunk;
     }
 
     buffer[copy_size] = '\0';
@@ -3334,10 +2996,15 @@ void startingNWOS() {
     print("[OK] ");
     set_color(base_color);
     print("FILESYSTEM\n");
+    mouse_init();
     set_color(COLOR_GREEN);
     print("[OK] ");
     set_color(base_color);
     print("KEYBOARD\n");
+    set_color(COLOR_GREEN);
+    print("[OK] ");
+    set_color(base_color);
+    print("MOUSE\n");
     set_color(COLOR_GREEN);
     print("[OK] ");
     set_color(base_color);
@@ -3366,13 +3033,33 @@ int fs_read_binary(
 
     if (index == -1)
         return 0;
-    if (max_size > 512)
-        max_size = 512;
+    if (max_size > FS_FILE_SECTORS * 512)
+        max_size = FS_FILE_SECTORS * 512;
 
-    ata_read_sector_d(
-        fs_current_drive,
-        FS_DATA_LBA + (unsigned int)index,
-        buffer);
+    unsigned int size = directory[index].size;
+    unsigned int copy_size = size < max_size ? size : max_size;
+    unsigned int copied = 0;
+
+    while (copied < copy_size)
+    {
+        unsigned char sector[512];
+        unsigned int sector_index = copied / 512;
+        unsigned int sector_offset = copied % 512;
+        unsigned int chunk = 512 - sector_offset;
+
+        if (chunk > copy_size - copied)
+            chunk = copy_size - copied;
+
+        ata_read_sector_d(
+            fs_current_drive,
+            FS_DATA_LBA + (unsigned int)index * FS_FILE_SECTORS + sector_index,
+            sector);
+
+        for (unsigned int i = 0; i < chunk; i++)
+            buffer[copied + i] = sector[sector_offset + i];
+
+        copied += chunk;
+    }
 
     return 1;
 }
@@ -3526,6 +3213,243 @@ static void cmd_disks(void)
     print("  'drive <letter|number>' switches the active disk\n");
     print("  'disk <letter|number>' shows the detailed size of one disk\n");
     putchar_os('\n');
+}
+
+#include "kernel.h"
+
+void fs_store_data(int index, const char* text, const char* success_message)
+{
+    static unsigned char buffer[FS_FILE_SECTORS * 512];
+
+    int i = 0;
+
+    while (text[i] != '\0' &&
+           i < MAX_FILE_SIZE - 1)
+    {
+        buffer[i] = text[i];
+        i++;
+    }
+
+    buffer[i] = '\0';
+
+    for (int k = i + 1; k < FS_FILE_SECTORS * 512; k++)
+    {
+        buffer[k] = 0;
+    }
+
+    directory[index].size = (unsigned int)i;
+
+    for (int s = 0; s < FS_FILE_SECTORS; s++)
+    {
+        ata_write_sector_d(
+            fs_current_drive,
+            FS_DATA_LBA + index * FS_FILE_SECTORS + s,
+            buffer + s * 512);
+    }
+
+    fs_save_directory();
+
+    if (text[i] != '\0')
+    {
+        print_error("Text is too long. Maximum is 16384 characters.\n");
+        return;
+    }
+
+    print_success(success_message);
+}
+
+void fs_write(const char* name, const char* text)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    fs_store_data(index, text, "File written.\n");
+}
+
+void fs_read(const char* name)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    static unsigned char buffer[MAX_FILE_SIZE];
+
+    if (!fs_read_text(directory[index].name, (char*)buffer, sizeof(buffer)))
+    {
+        print_error("Read error.\n");
+        return;
+    }
+
+    print_title("\n--- ");
+    print(directory[index].name);
+    print(" ---\n");
+
+    print((const char*)buffer);
+
+    putchar_os('\n');
+
+    print_title("--- END ---\n\n");
+}
+
+void fs_edit(const char* name, const char* text)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    fs_store_data(index, text, "File edited.\n");
+}
+
+void fs_delete(const char* name)
+{
+    int index = fs_find(name);
+
+    if (index == -1)
+    {
+        print_error("File not found.\n");
+        return;
+    }
+
+    if (directory[index].type == FS_TYPE_DIR)
+    {
+        print_error("Is a directory. Use 'rmdir' to remove it.\n");
+        return;
+    }
+
+    directory[index].used = 0;
+
+    directory[index].name[0] = '\0';
+    directory[index].size = 0;
+
+    fs_save_directory();
+
+    print_success("File deleted.\n");
+}
+
+void fs_create(const char* name) {
+    if (name[0] == '\0') {
+        print_error("Filename is empty.\n");
+        return;
+    }
+
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (directory[i].used && directory[i].parent == current_dir && strcmp(directory[i].name, name) == 0) {
+            print_error("File already exists.\n");
+            return;
+        }
+    }
+
+    for (int i = 1; i < MAX_FILES; i++) {
+        if (!directory[i].used) {
+            directory[i].used = 1;
+            directory[i].type = FS_TYPE_FILE;
+            directory[i].parent = current_dir;
+            strcpy(directory[i].name, name);
+            directory[i].size = 0;
+
+            unsigned char empty[512];
+            for (int k = 0; k < 512; k++) empty[k] = 0;
+            for (int s = 0; s < FS_FILE_SECTORS; s++)
+                ata_write_sector_d(
+                    fs_current_drive,
+                    FS_DATA_LBA + i * FS_FILE_SECTORS + s,
+                    empty);
+
+            fs_save_directory();
+            if (!fs_quiet) print_success("File created.\n");
+            return;
+        }
+    }
+    print_error("No free file slots.\n");
+}
+
+void fs_mkdir(const char* name) {
+    if (name[0] == '\0') {
+        print_error("Directory name is empty.\n");
+        return;
+    }
+
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (directory[i].used && directory[i].parent == current_dir && strcmp(directory[i].name, name) == 0) {
+            print_error("Directory already exists.\n");
+            return;
+        }
+    }
+
+    for (int i = 1; i < MAX_FILES; i++) {
+        if (!directory[i].used) {
+            directory[i].used = 1;
+            directory[i].type = FS_TYPE_DIR;
+            directory[i].parent = current_dir;
+            strcpy(directory[i].name, name);
+            directory[i].size = 0;
+
+            fs_save_directory();
+            if (!fs_quiet) print_success("Directory created.\n");
+            return;
+        }
+    }
+    print_error("No free file slots.\n");
+}
+
+void fs_ls(void) {
+    print_title("\n=== DIRECTORY ===\n\n");
+    int found = 0;
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (directory[i].used && directory[i].parent == current_dir && i != 0) {
+            if (directory[i].type == FS_TYPE_DIR) {
+                set_color(COLOR_LIGHT_BLUE);
+                print("  [DIR]  ");
+                print(directory[i].name);
+                print("/\n");
+                set_color(base_color);
+            } else {
+                print("  [FILE] ");
+                print(directory[i].name);
+                print(" (");
+                print_int((int)directory[i].size);
+                print(" bytes)\n");
+            }
+            found = 1;
+        }
+    }
+    if (!found) print("  (empty)\n");
+    putchar_os('\n');
+}
+
+void fs_cd(const char* name) {
+    if (strcmp(name, "..") == 0) {
+        if (current_dir != 0) current_dir = directory[current_dir].parent;
+        return;
+    }
+
+    if (name[0] == '/') {
+        current_dir = 0;
+    }
+
+    const char* search_name = name;
+    if (name[0] == '/') search_name = name + 1;
+
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (directory[i].used && directory[i].type == FS_TYPE_DIR &&
+            strcmp(directory[i].name, search_name) == 0) {
+            current_dir = i;
+            return;
+        }
+    }
 }
 
 static int resolve_drive_arg(const char* args)
@@ -3697,7 +3621,7 @@ static void cmd_disk_info(const char* args)
         unsigned long long used = fs_drive_used_bytes(idx, &files);
         unsigned int entries = fs_drive_entry_count(idx);
         unsigned long long overhead =
-            (unsigned long long)(1 + FS_DIR_SECTORS + MAX_FILES) * 512ULL;
+            (unsigned long long)(1 + FS_DIR_SECTORS + MAX_FILES * FS_FILE_SECTORS) * 512ULL;
         unsigned long long free = (total > overhead) ? (total - overhead) : 0;
 
         print("  Filesystem: ");
@@ -3749,7 +3673,7 @@ void death_screen(void) {
     
     unsigned char zero[512];
     for (int k = 0; k < 512; k++) zero[k] = 0;
-    for (int i = 0; i < MAX_FILES; i++) {
+    for (int i = 0; i < MAX_FILES * FS_FILE_SECTORS; i++) {
         ata_write_sector_d(fs_current_drive, FS_DATA_LBA + i, zero);
     }
     
@@ -3763,7 +3687,7 @@ void death_screen(void) {
     unsigned char sector[512];
     for (int k = 0; k < 512; k++) sector[k] = 0;
     for (int k = 0; msg[k] != '\0' && k < 511; k++) sector[k] = msg[k];
-    ata_write_sector_d(fs_current_drive, FS_DATA_LBA + 1, sector);
+    ata_write_sector_d(fs_current_drive, FS_DATA_LBA + 1 * FS_FILE_SECTORS, sector);
     
     fs_save_directory();
     
@@ -4380,110 +4304,31 @@ void cmd_settings(void)
     putchar_os('\n');
 }
 
-void change_p_color(void)
-{
-    int choose_c;
-
-    print("Prompt color:\n");
-
-    set_color(COLOR_CYAN);           print("1. cyan (default)\n");
-    set_color(COLOR_RED);            print("2. red\n");
-    set_color(COLOR_GREEN);          print("3. green\n");
-    set_color(COLOR_BLUE);           print("4. blue\n");
-    set_color(COLOR_MAGENTA);        print("5. magenta\n");
-    set_color(COLOR_BROWN);          print("6. brown\n");
-    set_color(COLOR_LIGHT_GRAY);     print("7. light gray\n");
-    set_color(COLOR_DARK_GRAY);      print("8. dark gray\n");
-    set_color(COLOR_LIGHT_BLUE);     print("9. light blue\n");
-    set_color(COLOR_LIGHT_GREEN);    print("10. light green\n");
-    set_color(COLOR_LIGHT_CYAN);     print("11. light cyan\n");
-    set_color(COLOR_LIGHT_RED);      print("12. light red\n");
-    set_color(COLOR_LIGHT_MAGENTA);  print("13. light magenta\n");
-    set_color(COLOR_YELLOW);         print("14. yellow\n");
-    set_color(COLOR_WHITE);          print("15. white\n");
-    set_color(COLOR_BLACK);          print("16. black\n");
-
-    set_color(base_color);
-    print("Color: ");
-    choose_c = read_int();
-
-    if (choose_c < 1 || choose_c > 16)
-    {
-        print_error("Invalid choose!\n");
-        return;
-    }
-
-    prompt_color = (unsigned char)(choose_c - 1);
-
-    settings_save();
-
-    print_success("Prompt color set\n");
-    print("Preview: ");
-    set_color(prompt_color);
-    print_shell_p();
-    set_color(base_color);
-    putchar_os('\n');
-}
-
-void print_shell_p(void)
-{
-    print(shell_prompt_text());
-}
-
-void shell(void)
-{
-    char command[128];
-
-    while (1)
-    {
-        set_color(prompt_color);
-        print_shell_p();
-        set_color(base_color);
-
-        read_line(command, 128);
-
-        shell_execute(command);
-    }
-}
-
 void run_gui(void) {
-    if (gui_bin_len == 0) {
-        print_error("Error: GUI binary is empty!\n");
+    int saved_dir = current_dir;
+    uint32_t saved_width = fb_get_width();
+    uint32_t saved_height = fb_get_height();
+
+    if (saved_width == 0 || saved_height == 0) {
+        saved_width = NWOS_BOOT_WIDTH;
+        saved_height = NWOS_BOOT_HEIGHT;
+    }
+
+    if (!fb_set_mode(NWOS_GUI_WIDTH, NWOS_GUI_HEIGHT)) {
+        print_error("GUI: cannot switch video mode.\n");
         return;
     }
-    
-    print("Loading GUI (");
-    print_int(gui_bin_len);
-    print(" bytes)...\n");
-    sleep(500);
 
-    uint8_t* gui_mem = (uint8_t*)0x400000;
-    for (unsigned int i = 0; i < gui_bin_len; i++) {
-        gui_mem[i] = gui_bin[i];
-    }
-    
-    gui_api_t api;
-    api.draw_rect = fb_draw_rect;
-    api.draw_char = fb_draw_char;
-    api.getkey = keyboard_getkey;
-    api.sleep = sleep;
+    mouse_set_bounds((int)fb_get_width(), (int)fb_get_height());
 
-    extern unsigned char inb(unsigned short port);
-    while (inb(0x64) & 1) {
-        (void)inb(0x60);
-    }
+    current_dir = 0;
+    fs_cd("bin");
+    nwo_run("gui.nwo");
+    current_dir = saved_dir;
 
-    __asm__ volatile ("cli");
-    
-    typedef void (*gui_entry_t)(gui_api_t*);
-    gui_entry_t gui_start = (gui_entry_t)0x400000;
-    
-    gui_start(&api);
-
-    __asm__ volatile ("sti");
-    
+    fb_set_mode(saved_width, saved_height);
+    mouse_set_bounds((int)fb_get_width(), (int)fb_get_height());
     clear();
-    print("GUI closed.\n");
 }
 
 static void print_size_bytes(unsigned long long bytes)
@@ -4515,8 +4360,8 @@ static unsigned long long rootfs_total_size(void)
 
 static unsigned long long install_disk_usage(void)
 {
-    /* magic sector + directory sectors + one data sector per slot */
-    return (unsigned long long)(1 + FS_DIR_SECTORS + MAX_FILES) * 512ULL;
+    /* magic sector + directory sectors + file data slots */
+    return (unsigned long long)(1 + FS_DIR_SECTORS + MAX_FILES * FS_FILE_SECTORS) * 512ULL;
 }
 
 static void installer_print_disks(int selected)
@@ -4604,7 +4449,7 @@ void installer(void) {
     print("\n    Disk usage:  ");
     print_size_bytes(install_disk_usage());
     print(" (");
-    print_int(1 + FS_DIR_SECTORS + MAX_FILES);
+    print_int(1 + FS_DIR_SECTORS + MAX_FILES * FS_FILE_SECTORS);
     print(" sectors)\n");
 
     char buf[32];
@@ -4644,7 +4489,7 @@ void installer(void) {
         return;
     }
 
-    if (target->sectors < (unsigned int)(1 + FS_DIR_SECTORS + MAX_FILES))
+    if (target->sectors < (unsigned int)(1 + FS_DIR_SECTORS + MAX_FILES * FS_FILE_SECTORS))
     {
         print_error("\n  Disk is too small for " OS_NAME ".\n");
         print("  Required: ");
@@ -4694,19 +4539,17 @@ void installer(void) {
     print("\n    Disk usage:  ");
     print_size_bytes(install_disk_usage());
     print("\n");
-    print("  Rebooting in 3 seconds...\n");
-    sleep(3000);
-    reboot();
-}
-
-void dead_boot(void) {
-    clear();
-    
-    if (fb_is_available()) {
-        fb_draw_image((640 - LOGO_NWOS_WIDTH) / 2, 40, LogoNwOS, LOGO_NWOS_WIDTH, LOGO_NWOS_HEIGHT);
+    for (int i = 0; i < 3; i++) {
+        if (i == 1) {
+            print("Reboot in 3 seconds...\n");
+        } else if (i == 2) {
+            print("Reboot in 2 seconds...\n");
+        } else if (i == 3) {
+            print("Reboot in 1 seconds...\n");
+        }
+        sleep(1000);
     }
-    
-    while (1) __asm__ volatile("hlt");
+    reboot();
 }
 
 void kernel_main(void) {
@@ -4720,7 +4563,7 @@ void kernel_main(void) {
         const char* msg1 = " FATAL ERROR: Framebuffer not found! ";
         for (int i = 0; msg1[i]; i++) vga[2 * 80 + 10 + i] = (uint16_t)msg1[i] | (0x4F << 8);
 
-        const char* msg2 = " Check GRUB config (set gfxpayload=640x400x32). ";
+        const char* msg2 = " Check limine framebuffer configuration. ";
         for (int i = 0; msg2[i]; i++) vga[4 * 80 + 5 + i] = (uint16_t)msg2[i] | (0x4F << 8);
         
         const char* msg3 = " If booting from HDD, try NwOS.iso instead. ";
@@ -4766,7 +4609,7 @@ void kernel_main(void) {
 
     clear();
 
-    fb_draw_image(288, 198, LogoNwOS, LOGO_NWOS_WIDTH, LOGO_NWOS_HEIGHT);
+    fb_draw_image(((int)fb_get_width() - LOGO_NWOS_WIDTH) / 2, ((int)fb_get_height() - LOGO_NWOS_HEIGHT) / 2, LogoNwOS, LOGO_NWOS_WIDTH, LOGO_NWOS_HEIGHT);
 
     sleep(1500);
 

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NwOS — Command reference</title>
+    <meta name="description" content="Every command available in the NwOS shell, grouped and searchable.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="help.css">
+    <link rel="icon" type="image/png" href="LogoNwOS.png">
+</head>
+<body>
+    <header>
+        <img src="LogoNwOS.png" alt="NwOS logo" class="logo" width="96" height="96">
+        <h1>Command reference</h1>
+        <p>Every command in the NwOS shell, grouped and searchable.</p>
+
+        <div class="header-actions">
+            <a href="index.html" class="button button-secondary">Back to overview</a>
+            <a href="https://github.com/User014015/NwOS"
+               class="button button-secondary">View on GitHub</a>
+        </div>
+    </header>
+
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="#essentials">Essentials</a>
+        <a href="#files">Files</a>
+        <a href="#storage">Storage</a>
+        <a href="#programs">Programs</a>
+        <a href="#system">System</a>
+        <a href="#network">Network</a>
+        <a href="#extras">Extras</a>
+    </nav>
+
+    <main>
+        <div class="search-panel">
+            <div class="search-field">
+                <label class="sr-only" for="command-search">Search commands</label>
+                <input id="command-search"
+                       class="search-input"
+                       type="search"
+                       placeholder="Search commands, flags, or descriptions..."
+                       autocomplete="off"
+                       spellcheck="false">
+                <span class="search-hint"><kbd>/</kbd> to search</span>
+            </div>
+            <span id="search-count" class="search-count" aria-live="polite">46 commands</span>
+        </div>
+
+        <p class="reference-note">
+            Type commands into the NwOS shell. Arguments in
+            <code>&lt;angle brackets&gt;</code> are required;
+            <code>[square brackets]</code> are optional.
+        </p>
+
+        <section id="essentials" class="command-section">
+            <h2>Essentials</h2>
+            <p class="section-lead">The first commands to know when you land in the shell.</p>
+
+            <ul class="command-grid">
+                <li class="command-card">
+                    <div class="command-head">
+                        <code>help</code>
+                        <span class="tag">start here</span>
+                    </div>
+                    <p>Show the list of built-in commands.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>about</code></div>
+                    <p>Show information about NwOS and this build.</p>
+                </li>
+                <li class="command-card" data-search="system info neofetch summary">
+                    <div class="command-head"><code>nwfetch</code></div>
+                    <p>Display a compact system summary.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>clear</code></div>
+                    <p>Clear the terminal screen.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>settings</code></div>
+                    <p>Show the current settings stored in <code>sys.conf</code>.</p>
+                </li>
+                <li class="command-card" data-search="memory ram usage">
+                    <div class="command-head"><code>mem</code></div>
+                    <p>Show memory usage and availability.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>time</code></div>
+                    <p>Show the current time and date.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>zones</code></div>
+                    <p>List the available time zones.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>uptime</code></div>
+                    <p>Show how long the system has been running.</p>
+                </li>
+            </ul>
+        </section>
+
+        <section id="files" class="command-section">
+            <h2>Files</h2>
+            <p class="section-lead">Browse, create, and edit files on the active disk.</p>
+
+            <ul class="command-grid">
+                <li class="command-card">
+                    <div class="command-head"><code>ls</code></div>
+                    <p>List files and directories in the current directory.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>cd &lt;dir&gt;</code></div>
+                    <p>Change directory. Use <code>..</code> to move one level up.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>mkdir &lt;dir&gt;</code></div>
+                    <p>Create a new directory.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>create &lt;file&gt;</code></div>
+                    <p>Create an empty file.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>read &lt;file&gt;</code></div>
+                    <p>Print the contents of a text file.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>write &lt;file&gt; &lt;text&gt;</code></div>
+                    <p>Write text to a file.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>edit &lt;file&gt;</code></div>
+                    <p>Open a file in the built-in text editor.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>delete &lt;file&gt;</code></div>
+                    <p>Delete a file.</p>
+                </li>
+                <li class="command-card" data-search="remove delete erase">
+                    <div class="command-head">
+                        <code>rm [-r] &lt;file&gt;</code>
+                        <span class="tag tag-warn">careful</span>
+                    </div>
+                    <p>Remove a file. Use <code>-r</code> to remove a directory.</p>
+                </li>
+                <li class="command-card" data-search="remove directory recursively">
+                    <div class="command-head">
+                        <code>rmdir &lt;dir&gt;</code>
+                        <span class="tag tag-warn">careful</span>
+                    </div>
+                    <p>Remove a directory together with its contents.</p>
+                </li>
+            </ul>
+        </section>
+
+        <section id="storage" class="command-section">
+            <h2>Storage</h2>
+            <p class="section-lead">Inspect disks, switch drives, and install NwOS.</p>
+
+            <ul class="command-grid">
+                <li class="command-card" data-search="erase wipe disk">
+                    <div class="command-head">
+                        <code>format</code>
+                        <span class="tag tag-warn">erases data</span>
+                    </div>
+                    <p>Erase all files on the current disk and reinstall the root filesystem.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>disk &lt;D&gt;</code></div>
+                    <p>Show detailed size and filesystem information for one disk.</p>
+                </li>
+                <li class="command-card" data-search="switch disk drive letter">
+                    <div class="command-head"><code>drive &lt;C|D|n&gt;</code></div>
+                    <p>Switch the active disk by letter or number.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>disks</code></div>
+                    <p>List all ATA disks detected by the system.</p>
+                </li>
+                <li class="command-card" data-search="setup install wizard">
+                    <div class="command-head">
+                        <code>install</code>
+                        <span class="tag tag-warn">erases data</span>
+                    </div>
+                    <p>Run the installation wizard and write NwOS to a disk.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>hexview &lt;file&gt;</code></div>
+                    <p>Display a file as a hexadecimal byte map.</p>
+                </li>
+                <li class="command-card" data-search="nwo executable inspect opcodes">
+                    <div class="command-head"><code>nwocheck &lt;file&gt;</code></div>
+                    <p>Inspect an NWO executable and its opcodes.</p>
+                </li>
+            </ul>
+        </section>
+
+        <section id="programs" class="command-section">
+            <h2>Programs &amp; graphics</h2>
+            <p class="section-lead">Run NWO programs and launch the graphical shell.</p>
+
+            <ul class="command-grid">
+                <li class="command-card">
+                    <div class="command-head"><code>run &lt;file.nwo&gt;</code></div>
+                    <p>Run an NWO executable from the current directory.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>apps</code></div>
+                    <p>List the applications installed on the system.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>games</code></div>
+                    <p>Open the games menu.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>calc</code></div>
+                    <p>Launch the calculator.</p>
+                </li>
+                <li class="command-card" data-search="graphical desktop window gui nwc">
+                    <div class="command-head">
+                        <code>gui</code>
+                        <span class="tag tag-beta">graphics</span>
+                    </div>
+                    <p>Launch the graphical shell written in NwC.</p>
+                </li>
+            </ul>
+        </section>
+
+        <section id="system" class="command-section">
+            <h2>System</h2>
+            <p class="section-lead">Change the shell, inspect hardware, and control the machine.</p>
+
+            <ul class="command-grid">
+                <li class="command-card">
+                    <div class="command-head"><code>color</code></div>
+                    <p>Change the shell color settings.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>change color</code></div>
+                    <p>Change the prompt color.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>change invite</code></div>
+                    <p>Change the shell prompt text.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>timezone &lt;num&gt;</code></div>
+                    <p>Set the active time zone.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>date</code></div>
+                    <p>Set a custom date.</p>
+                </li>
+                <li class="command-card" data-search="processor hardware">
+                    <div class="command-head"><code>cpu</code></div>
+                    <p>Show information about the processor.</p>
+                </li>
+                <li class="command-card" data-search="pci hardware devices">
+                    <div class="command-head"><code>lspci</code></div>
+                    <p>List PCI devices detected by the system.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>reboot</code></div>
+                    <p>Restart the computer.</p>
+                </li>
+            </ul>
+        </section>
+
+        <section id="network" class="command-section">
+            <h2>Network</h2>
+            <p class="section-lead">Check the network stack and reach other hosts.</p>
+
+            <ul class="command-grid">
+                <li class="command-card" data-search="network status ip mac link">
+                    <div class="command-head"><code>net</code></div>
+                    <p>Show network status: MAC address, IP address, and link state.</p>
+                </li>
+                <li class="command-card" data-search="network ping host ip">
+                    <div class="command-head"><code>ping &lt;host|ip&gt;</code></div>
+                    <p>Ping a host name or IP address.</p>
+                </li>
+            </ul>
+        </section>
+
+        <section id="extras" class="command-section">
+            <h2>Extras</h2>
+            <p class="section-lead">Small utilities and a few fun commands.</p>
+
+            <ul class="command-grid">
+                <li class="command-card">
+                    <div class="command-head"><code>echo &lt;text&gt;</code></div>
+                    <p>Print text back to the terminal.</p>
+                </li>
+                <li class="command-card" data-search="random number generator">
+                    <div class="command-head"><code>generate num</code></div>
+                    <p>Generate a random number.</p>
+                </li>
+                <li class="command-card" data-search="random word generator">
+                    <div class="command-head"><code>random word</code></div>
+                    <p>Generate a random word.</p>
+                </li>
+                <li class="command-card">
+                    <div class="command-head"><code>chat</code></div>
+                    <p>Talk to the built-in chat companion.</p>
+                </li>
+                <li class="command-card" data-search="more commands additional help">
+                    <div class="command-head"><code>more</code></div>
+                    <p>Show additional commands that are not in the short list.</p>
+                </li>
+            </ul>
+        </section>
+
+        <p id="no-results" class="no-results">
+            No commands match that search. Try a shorter query.
+        </p>
+    </main>
+
+    <footer>
+        <p>
+            NwOS &copy; 2026 &mdash;
+            <a href="https://github.com/User014015/NwOS">source code on GitHub</a>
+        </p>
+    </footer>
+
+    <script>
+    (function () {
+        "use strict";
+
+        var input = document.getElementById("command-search");
+        var count = document.getElementById("search-count");
+        var empty = document.getElementById("no-results");
+        var cards = Array.prototype.slice.call(
+            document.querySelectorAll(".command-card")
+        );
+        var sections = Array.prototype.slice.call(
+            document.querySelectorAll(".command-section")
+        );
+
+        function update() {
+            var query = input.value.trim().toLowerCase();
+            var visible = 0;
+
+            cards.forEach(function (card) {
+                var haystack = card.textContent.toLowerCase() +
+                               " " + (card.dataset.search || "");
+                var match = query === "" || haystack.indexOf(query) !== -1;
+
+                card.classList.toggle("hidden", !match);
+                if (match) visible++;
+            });
+
+            sections.forEach(function (section) {
+                var hasVisible = section.querySelector(
+                    ".command-card:not(.hidden)"
+                ) !== null;
+                section.classList.toggle("hidden", !hasVisible);
+            });
+
+            count.textContent = visible === 1
+                ? "1 command"
+                : visible + " commands";
+            empty.classList.toggle("visible", visible === 0);
+        }
+
+        input.addEventListener("input", update);
+
+        input.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") {
+                input.value = "";
+                update();
+                input.blur();
+            }
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "/" && document.activeElement !== input) {
+                event.preventDefault();
+                input.focus();
+            }
+        });
+
+        update();
+    })();
+    </script>
+</body>
+</html>

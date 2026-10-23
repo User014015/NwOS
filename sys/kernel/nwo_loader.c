@@ -1,6 +1,8 @@
 #include "nwo_loader.h"
 #include "kernel.h"
 int fs_find(const char* name);
+int fs_read_binary(const char* name, unsigned char* buffer, unsigned int max_size);
+unsigned int fs_get_file_size(const char* name);
 
 void ata_read_sector_d(
     int drive_idx,
@@ -18,8 +20,8 @@ void ata_read_sector_d(
 
 #define NWO_VERSION_1        1
 
-#define NWO_MAX_FILE_SIZE    512
-#define NWO_MAX_CODE_SIZE    480
+#define NWO_MAX_FILE_SIZE    16384
+#define NWO_MAX_CODE_SIZE    16384
 
 static unsigned char nwo_file_buffer[NWO_MAX_FILE_SIZE];
 
@@ -110,16 +112,22 @@ int nwo_load(
     if (index == -1)
         return 0;
 
-    ata_read_sector_d(
-        fs_get_drive(),
-        FS_DATA_LBA + (unsigned int)index,
-        nwo_file_buffer);
+    file_size = fs_get_file_size(filename);
 
-    file_size = NWO_HEADER_SIZE;
+    if (file_size == 0 || file_size > NWO_MAX_FILE_SIZE)
+        return 0;
+
+    if (!fs_read_binary(
+            filename,
+            nwo_file_buffer,
+            NWO_MAX_FILE_SIZE))
+    {
+        return 0;
+    }
 
     if (!nwo_validate(
             nwo_file_buffer,
-            NWO_MAX_FILE_SIZE))
+            file_size))
     {
         return 0;
     }

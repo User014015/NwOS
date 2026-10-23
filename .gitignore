@@ -16,3 +16,6 @@ compiler/builded/
 compiler/nwc
 rootfs/
 nwimg
+cloc
+c
+full_lnw.txt

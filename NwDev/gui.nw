@@ -1,23 +1,471 @@
 #include <nwc.h>
 
-
 1A main() {
-    nw::rect(0, 0, 640, 400, 0x000080FF);
-    
-    nw::rect(0, 380, 640, 20, 0x00202020);
-    
-    nw::rect(100, 80, 300, 200, 0x00E0E0E0);
-    
-    nw::rect(100, 80, 300, 20, 0x000000AA);
-    
-    nw::out << "GUI from NwC!" << nw::endl;
-    nw::out << "Press ESC to exit." << nw::endl;
+    clear_screen();
 
-    1A key = 0;
-    while (key != 27) {
-        key = nw::getkey();
+    1A running = 1;
+    1A start_open = 0;
+    1A window_open = 1;
+    1A mx = 640;
+    1A my = 360;
+    1A btn = 0;
+    1A lastbtn = 0;
+    1A lastx = 0;
+    1A lasty = 0;
+    1A dirty = 1;
+    1A in_menu = 0;
+    1A menu_before = 0;
+    1A win_x = 156;
+    1A win_y = 86;
+    1A win_w = 438;
+    1A win_h = 326;
+    1A dragging = 0;
+    1A drag_dx = 0;
+    1A drag_dy = 0;
+    1A next_x = 0;
+    1A next_y = 0;
+    1A resizing = 0;
+    1A rz_left = 0;
+    1A rz_right = 0;
+    1A rz_top = 0;
+    1A rz_bottom = 0;
+    1A new_x = 0;
+    1A new_y = 0;
+    1A new_w = 0;
+    1A new_h = 0;
+
+    while (running == 1) {
+        mx = nw::mouse_x();
+        my = nw::mouse_y();
+        btn = nw::mouse_buttons();
+
+        if (mx != lastx) {
+            dirty = 1;
+        }
+        if (my != lasty) {
+            dirty = 1;
+        }
+        if (btn != lastbtn) {
+            dirty = 1;
+        }
+
+        if (dirty == 1) {
+            nw::rect(0, 0, 1280, 720, 0x00008080);
+            nw::wallpaper();
+
+            nw::rect(30, 34, 54, 44, 0x00E0E0E0);
+            nw::rect(36, 40, 42, 28, 0x00008080);
+            nw::rect(28, 78, 58, 6, 0x00C0C0C0);
+            nw::draw!TEXT << x=24,y=92 !COLOR=WHITE << "My Computer";
+
+            nw::rect(30, 130, 54, 44, 0x00E0E0E0);
+            nw::rect(38, 138, 38, 28, 0x00FFFFFF);
+            nw::rect(44, 144, 26, 3, 0x00000000);
+            nw::rect(44, 151, 26, 3, 0x00000000);
+            nw::rect(44, 158, 18, 3, 0x00000000);
+            nw::draw!TEXT << x=22,y=188 !COLOR=WHITE << "My Documents";
+
+            if (window_open == 1) {
+                nw::rect(win_x + 7, win_y + 7, win_w, win_h, 0x00404040);
+
+                nw::window(win_x, win_y, win_w, win_h, 0x000080, "NwOS 26: GUI");
+
+                nw::text(win_x + 20, win_y + 36, 0x000000, "Welcome to NwOS 26: GUI");
+
+                nw::rect(win_x + 18, win_y + 56, win_w - 42, 2, 0x00808080);
+                nw::rect(win_x + 18, win_y + 57, win_w - 42, 1, 0x00FFFFFF);
+
+                nw::rect(win_x + 22, win_y + 72, 62, 54, 0x00FFFFFF);
+                nw::rect(win_x + 25, win_y + 75, 56, 42, 0x00008080);
+                nw::rect(win_x + 35, win_y + 84, 36, 4, 0x00FFFFFF);
+                nw::rect(win_x + 35, win_y + 92, 28, 4, 0x00FFFFFF);
+                nw::rect(win_x + 35, win_y + 100, 32, 4, 0x00FFFFFF);
+                nw::rect(win_x + 20, win_y + 126, 66, 8, 0x00C0C0C0);
+                nw::text(win_x + 14, win_y + 142, 0x000000, "NwOS Computer");
+
+                nw::text(win_x + 108, win_y + 78, 0x000000, "System is ready.");
+                nw::text(win_x + 108, win_y + 94, 0x000000, "Programs: run <name>.nwo");
+                nw::text(win_x + 108, win_y + 110, 0x000000, "Shell: type help");
+                nw::text(win_x + 108, win_y + 126, 0x000000, "Use NwOS to power off.");
+
+                nw::rect(win_x + 106, win_y + 150, win_w - 128, 1, 0x00808080);
+                nw::rect(win_x + 106, win_y + 151, win_w - 128, 1, 0x00FFFFFF);
+
+                nw::rect(win_x + 114, win_y + 166, win_w - 136, win_h - 186, 0x00FFFFFF);
+                nw::rect(win_x + 115, win_y + 167, win_w - 138, win_h - 188, 0x00000000);
+                nw::rect(win_x + 118, win_y + 170, win_w - 144, win_h - 194, 0x00FFFFFF);
+                nw::text(win_x + 130, win_y + 182, 0x000080, "NwOS 26: GUI");
+                nw::text(win_x + 130, win_y + 198, 0x000000, "A desktop shell in NwC.");
+                nw::text(win_x + 130, win_y + 214, 0x000000, "Drag title bar to move.");
+                nw::text(win_x + 130, win_y + 230, 0x000000, "Resize from any edge.");
+                nw::text(win_x + 130, win_y + 246, 0x000000, "Close with the X button.");
+                nw::text(win_x + 130, win_y + win_h - 38, 0x00808080, "copyright NwOS 2026");
+
+                nw::rect(win_x + win_w - 18, win_y + win_h - 18, 12, 2, 0x00A0A0A0);
+                nw::rect(win_x + win_w - 18, win_y + win_h - 12, 6, 2, 0x00A0A0A0);
+            }
+
+            nw::rect(0, 690, 1280, 30, 0x00C0C0C0);
+            nw::rect(0, 690, 1280, 2, 0x00FFFFFF);
+            nw::rect(0, 692, 1280, 1, 0x00808080);
+
+            nw::rect(4, 695, 88, 22, 0x00C0C0C0);
+            nw::rect(5, 696, 86, 20, 0x00C0C0C0);
+            nw::draw!FRAME << x=4,x2=92; \
+                             y=695,y2=717; \
+                             frame::no::window; \
+                             !COLOR=WHITE;
+
+            nw::rect(10, 699, 16, 16, 0x000000);
+            nw::rect(11, 700, 14, 14, 0x000080);
+            nw::rect(11, 700, 14, 1, 0x005858FF);
+            nw::rect(11, 700, 1, 14, 0x005858FF);
+            nw::draw!TEXT << x=14,y=703 !COLOR=WHITE << "N";
+
+            nw::draw!TEXT << x=34,y=701 !COLOR=BLACK << "NwOS";
+
+            nw::rect(360, 696, 1, 18, 0x00808080);
+            nw::rect(361, 696, 1, 18, 0x00FFFFFF);
+            nw::draw!TEXT << x=374,y=701 !COLOR=BLACK << "NwOS 26: GUI";
+
+            nw::draw!TEXT << x=1184,y=701 !COLOR=BLACK << "12:00";
+
+            if (start_open == 1) {
+                nw::rect(7, 425, 228, 266, 0x00C0C0C0);
+                nw::rect(8, 426, 226, 264, 0x00C0C0C0);
+
+                nw::rect(9, 427, 26, 262, 0x00000080);
+                nw::draw!TEXT << x=16,y=435 !COLOR=WHITE << "Nw";
+                nw::draw!TEXT << x=16,y=451 !COLOR=WHITE << "OS";
+                nw::draw!TEXT << x=16,y=467 !COLOR=WHITE << "26";
+
+                nw::draw!FRAME << x=7,x2=235; \
+                                 y=425,y2=691; \
+                                 frame::no::window; \
+                                 !COLOR=BLACK;
+
+                nw::rect(41, 434, 186, 24, 0x00000080);
+                nw::draw!TEXT << x=50,y=442 !COLOR=WHITE << "Programs";
+
+                nw::draw!TEXT << x=50,y=468 !COLOR=BLACK << "Documents";
+                nw::draw!TEXT << x=50,y=492 !COLOR=BLACK << "Settings";
+                nw::draw!TEXT << x=50,y=516 !COLOR=BLACK << "Find";
+                nw::draw!TEXT << x=50,y=540 !COLOR=BLACK << "Help";
+                nw::draw!TEXT << x=50,y=564 !COLOR=BLACK << "Run...";
+
+                nw::rect(41, 596, 186, 1, 0x00808080);
+                nw::rect(41, 597, 186, 1, 0x00FFFFFF);
+
+                nw::draw!TEXT << x=50,y=612 !COLOR=BLACK << "Power off (GUI)";
+                nw::draw!TEXT << x=50,y=636 !COLOR=BLACK << "Power off";
+                nw::draw!TEXT << x=50,y=660 !COLOR=BLACK << "Reboot";
+            }
+
+            nw::rect(mx + 0, my + 0, 1, 1, 0x000000);
+            nw::rect(mx + 0, my + 1, 3, 1, 0x000000);
+            nw::rect(mx + 0, my + 2, 4, 1, 0x000000);
+            nw::rect(mx + 0, my + 3, 5, 1, 0x000000);
+            nw::rect(mx + 0, my + 4, 6, 1, 0x000000);
+            nw::rect(mx + 0, my + 5, 7, 1, 0x000000);
+            nw::rect(mx + 0, my + 6, 8, 1, 0x000000);
+            nw::rect(mx + 0, my + 7, 9, 1, 0x000000);
+            nw::rect(mx + 0, my + 8, 10, 1, 0x000000);
+            nw::rect(mx + 0, my + 9, 11, 1, 0x000000);
+            nw::rect(mx + 0, my + 10, 6, 1, 0x000000);
+            nw::rect(mx + 1, my + 11, 3, 1, 0x000000);
+            nw::rect(mx + 2, my + 12, 3, 1, 0x000000);
+            nw::rect(mx + 3, my + 13, 3, 1, 0x000000);
+            nw::rect(mx + 4, my + 14, 3, 1, 0x000000);
+            nw::rect(mx + 5, my + 15, 3, 1, 0x000000);
+            nw::rect(mx + 6, my + 16, 3, 1, 0x000000);
+            nw::rect(mx + 7, my + 17, 3, 1, 0x000000);
+            nw::rect(mx + 8, my + 18, 3, 1, 0x000000);
+
+            nw::rect(mx + 1, my + 1, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 2, 2, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 3, 3, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 4, 4, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 5, 5, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 6, 6, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 7, 7, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 8, 8, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 9, 9, 1, 0x00FFFFFF);
+            nw::rect(mx + 1, my + 10, 4, 1, 0x00FFFFFF);
+            nw::rect(mx + 2, my + 11, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 3, my + 12, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 4, my + 13, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 5, my + 14, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 6, my + 15, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 7, my + 16, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 8, my + 17, 1, 1, 0x00FFFFFF);
+            nw::rect(mx + 9, my + 18, 1, 1, 0x00FFFFFF);
+
+            lastx = mx;
+            lasty = my;
+            dirty = 0;
+        }
+
+        if (btn == 1) {
+            if (lastbtn == 0) {
+                menu_before = start_open;
+                in_menu = 0;
+
+                if (start_open == 1) {
+                    if (mx >= 7) {
+                        if (mx <= 235) {
+                            if (my >= 425) {
+                                if (my <= 691) {
+                                    in_menu = 1;
+                                }
+                            }
+                        }
+                    }
+
+                    if (mx >= 41) {
+                        if (mx <= 227) {
+                            if (my >= 606) {
+                                if (my <= 626) {
+                                    running = 0;
+                                }
+                            }
+                            if (my >= 630) {
+                                if (my <= 650) {
+                                    nw::poweroff();
+                                }
+                            }
+                            if (my >= 654) {
+                                if (my <= 674) {
+                                    nw::reboot();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (window_open == 1) {
+                    if (mx >= (win_x + win_w - 20)) {
+                        if (mx <= (win_x + win_w - 6)) {
+                            if (my >= (win_y + 7)) {
+                                if (my <= (win_y + 20)) {
+                                    window_open = 0;
+                                    dragging = 0;
+                                    resizing = 0;
+                                    dirty = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (window_open == 1) {
+                    dragging = 0;
+                    resizing = 0;
+                    rz_left = 0;
+                    rz_right = 0;
+                    rz_top = 0;
+                    rz_bottom = 0;
+
+                    if (mx >= (win_x - 5)) {
+                        if (mx <= (win_x + 5)) {
+                            if (my >= (win_y - 5)) {
+                                if (my <= (win_y + win_h + 5)) {
+                                    rz_left = 1;
+                                    resizing = 1;
+                                }
+                            }
+                        }
+                    }
+                    if (mx >= (win_x + win_w - 5)) {
+                        if (mx <= (win_x + win_w + 5)) {
+                            if (my >= (win_y - 5)) {
+                                if (my <= (win_y + win_h + 5)) {
+                                    rz_right = 1;
+                                    resizing = 1;
+                                }
+                            }
+                        }
+                    }
+                    if (my >= (win_y - 5)) {
+                        if (my <= (win_y + 5)) {
+                            if (mx >= (win_x - 5)) {
+                                if (mx <= (win_x + win_w + 5)) {
+                                    rz_top = 1;
+                                    resizing = 1;
+                                }
+                            }
+                        }
+                    }
+                    if (my >= (win_y + win_h - 5)) {
+                        if (my <= (win_y + win_h + 5)) {
+                            if (mx >= (win_x - 5)) {
+                                if (mx <= (win_x + win_w + 5)) {
+                                    rz_bottom = 1;
+                                    resizing = 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (window_open == 1) {
+                    if (resizing == 0) {
+                        if (mx >= (win_x + 3)) {
+                            if (mx <= (win_x + win_w - 3)) {
+                                if (my >= (win_y + 3)) {
+                                    if (my <= (win_y + 23)) {
+                                        dragging = 1;
+                                        drag_dx = mx - win_x;
+                                        drag_dy = my - win_y;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (mx >= 24) {
+                    if (mx <= 84) {
+                        if (my >= 34) {
+                            if (my <= 100) {
+                                window_open = 1;
+                                dirty = 1;
+                            }
+                        }
+                    }
+                }
+
+                if (mx >= 4) {
+                    if (mx <= 92) {
+                        if (my >= 695) {
+                            if (my <= 717) {
+                                if (start_open == 1) {
+                                    start_open = 0;
+                                } else {
+                                    start_open = 1;
+                                }
+                                dirty = 1;
+                            }
+                        }
+                    }
+                }
+
+                if (menu_before == 1) {
+                    if (in_menu == 0) {
+                        start_open = 0;
+                        dirty = 1;
+                    }
+                }
+            }
+        }
+
+        if (dragging == 1) {
+            if (btn == 1) {
+                next_x = mx - drag_dx;
+                next_y = my - drag_dy;
+
+                if (next_x < 0) {
+                    next_x = 0;
+                }
+                if (next_y < 0) {
+                    next_y = 0;
+                }
+                if (next_x > (1280 - win_w)) {
+                    next_x = 1280 - win_w;
+                }
+                if (next_y > (690 - win_h)) {
+                    next_y = 690 - win_h;
+                }
+
+                if (next_x != win_x) {
+                    win_x = next_x;
+                    dirty = 1;
+                }
+                if (next_y != win_y) {
+                    win_y = next_y;
+                    dirty = 1;
+                }
+            } else {
+                dragging = 0;
+            }
+        }
+
+        if (resizing == 1) {
+            if (btn == 1) {
+                new_x = win_x;
+                new_y = win_y;
+                new_w = win_w;
+                new_h = win_h;
+
+                if (rz_right == 1) {
+                    new_w = mx - win_x;
+                }
+                if (rz_bottom == 1) {
+                    new_h = my - win_y;
+                }
+                if (rz_left == 1) {
+                    new_w = (win_x + win_w) - mx;
+                    new_x = mx;
+                }
+                if (rz_top == 1) {
+                    new_h = (win_y + win_h) - my;
+                    new_y = my;
+                }
+
+                if (new_w < 360) {
+                    if (rz_left == 1) {
+                        new_x = (win_x + win_w) - 360;
+                    }
+                    new_w = 360;
+                }
+                if (new_h < 300) {
+                    if (rz_top == 1) {
+                        new_y = (win_y + win_h) - 300;
+                    }
+                    new_h = 300;
+                }
+                if (new_x < 0) {
+                    new_w = new_w + new_x;
+                    new_x = 0;
+                }
+                if (new_y < 0) {
+                    new_h = new_h + new_y;
+                    new_y = 0;
+                }
+                if ((new_x + new_w) > 1280) {
+                    new_w = 1280 - new_x;
+                }
+                if ((new_y + new_h) > 690) {
+                    new_h = 690 - new_y;
+                }
+
+                if (new_x != win_x) {
+                    win_x = new_x;
+                    dirty = 1;
+                }
+                if (new_y != win_y) {
+                    win_y = new_y;
+                    dirty = 1;
+                }
+                if (new_w != win_w) {
+                    win_w = new_w;
+                    dirty = 1;
+                }
+                if (new_h != win_h) {
+                    win_h = new_h;
+                    dirty = 1;
+                }
+            } else {
+                resizing = 0;
+                rz_left = 0;
+                rz_right = 0;
+                rz_top = 0;
+                rz_bottom = 0;
+            }
+        }
+
+        lastbtn = btn;
+        sleep(10);
     }
-    
-    nw::clear();
+
     return 0;
 }

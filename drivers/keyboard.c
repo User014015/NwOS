@@ -1,4 +1,5 @@
 #include "keyboard.h"
+#include "mouse.h"
 
 #define KEYBOARD_DATA_PORT    0x60
 #define KEYBOARD_STATUS_PORT  0x64
@@ -122,13 +123,23 @@ void keyboard_init(void)
 
 static unsigned char keyboard_read_scancode(void)
 {
-    while (!(kb_inb(KEYBOARD_STATUS_PORT) &
-             KEYBOARD_STATUS_OUTPUT_FULL))
+    while (1)
     {
-        /* wait */
-    }
+        unsigned char status = kb_inb(KEYBOARD_STATUS_PORT);
 
-    return kb_inb(KEYBOARD_DATA_PORT);
+        if (!(status & KEYBOARD_STATUS_OUTPUT_FULL))
+            continue;
+
+        unsigned char byte = kb_inb(KEYBOARD_DATA_PORT);
+
+        if (status & 0x20)
+        {
+            mouse_handle_byte(byte);
+            continue;
+        }
+
+        return byte;
+    }
 }
 
 int keyboard_getkey(void)
@@ -172,6 +183,7 @@ int keyboard_getkey(void)
         if (scancode == 0x36) { shift_right = 1; continue; }
         if (scancode == 0x3A) { caps_lock = !caps_lock; continue; }
 
+        if (scancode == 0x01) return KEY_ESC;
         if (scancode == 0x0E) return KEY_BACKSPACE;
         if (scancode == 0x0F) return KEY_TAB;
         if (scancode == 0x1C) return KEY_ENTER;

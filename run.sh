@@ -11,4 +11,5 @@ qemu-system-x86_64 \
     -cdrom NwOS.iso\
     -m 128M \
     -nic user,model=e1000 \
-    -drive file=img/disk.img,format=raw,if=ide,index=0
+    -drive file=img/disk.img,format=raw,if=ide,index=0 \
+    -display sdl,grab-mod=rctrl

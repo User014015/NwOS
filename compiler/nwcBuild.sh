@@ -51,7 +51,6 @@ if [ $? -ne 0 ]; then error_exit; fi
 echo "[4/4] Linking NwC..."
 clang compiler/compilerMain.c compiler/builded/lexer.o compiler/builded/parser.o compiler/builded/codegen.o -o compiler/nwc
 if [ $? -ne 0 ]; then error_exit; fi
-degen.o -o compiler/nwc nw/test.nw
 
 echo
 echo "================================"

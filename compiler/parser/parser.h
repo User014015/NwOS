@@ -15,6 +15,13 @@ typedef enum
     AST_ARRAY_DECLARATION,
 
     AST_RETURN,
+    AST_ASSIGNMENT,
+    AST_ASM,
+
+    AST_IF,
+    AST_WHILE,
+    AST_BREAK,
+    AST_CONTINUE,
 
     AST_OUTPUT,
     AST_INPUT,
@@ -63,6 +70,12 @@ typedef struct ASTNode
     ValueType value_type;
 
     unsigned int array_size;
+    unsigned int modifiers;
+
+    char* text_color_name;
+    char* text_label;
+
+    unsigned int draw_flags;
 
     struct ASTNode* left;
     struct ASTNode* right;

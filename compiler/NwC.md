@@ -18,10 +18,6 @@ Formats:
 - .lnw --> Test, a low-level NwC version, only for system, only for trusted
 - .nwo --> compiled file, (!cant be launched today, we dont alr made compiler!)
 
-its not already ready, so just wait and play built-in games/apps
-
-(release: 16 september, if not: 20 september and less)
-
 ```text
 
  ****     **              ****** 

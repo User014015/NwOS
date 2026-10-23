@@ -1,0 +1,38 @@
+#include <nwc.h>
+
+0A help() {
+    nw::out << "shell_off       - Quit from shell\n";
+}
+
+0A date() {
+    nw::out << "Shell.nwo: 23.10.2026\n";
+}
+
+0A shell() {
+    bol running = true;
+    while (running) {
+        char cmd[32];
+        nw::out << "Shell> ";
+        nw::line(nw::cin, cmd);
+        if (strcmp(cmd, "help") == 0) {
+            call help();
+        }
+        else if (strcmp(cmd, "shell_off") == 0) {
+            running = false;
+            break;
+        }
+        else if (strcmp(cmd, "date create") == 0) {
+            date();
+        }
+    }
+}
+
+1A main() {
+    nw::out!COLOR << "Nw Shell" << nw::endl!COLOR:GREEN;
+    nw::out << "copyright (c) User014015 2026" << nw::endl;
+    nw::out << "'help' for help" << nw::endl;
+
+    call shell();
+
+    return 0;
+}

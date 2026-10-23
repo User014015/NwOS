@@ -1,6 +1,7 @@
 #include "../nwo_loader.h"
 #include "nwo_vm.h"
 
+void graphics_end(void);
 void print(const char* text);
 void print_int(int number);
 void putchar_os(char c);
@@ -34,6 +35,7 @@ void nwo_run(const char* filename)
     result = nwo_execute(&program);
 
     nwo_unload(&program);
+    graphics_end();
 
     if (result < 0)
     {

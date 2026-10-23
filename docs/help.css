@@ -1,0 +1,249 @@
+main {
+    max-width: 980px;
+}
+
+header .logo {
+    display: block;
+    margin: 0 auto 1.25rem;
+    border-radius: 20%;
+    box-shadow: 0 0 0 1px var(--border);
+}
+
+nav {
+    flex-wrap: wrap;
+}
+
+section[id] {
+    scroll-margin-top: 5rem;
+}
+
+.command-section:last-of-type {
+    border-bottom: none;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.search-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+    padding: 0.85rem 1rem;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.search-field {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+    min-width: 240px;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.65rem 0.85rem;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.18);
+}
+
+.search-hint {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.search-count {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+kbd {
+    display: inline-block;
+    padding: 0.1em 0.4em;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono",
+                 Menlo, Consolas, monospace;
+    font-size: 0.78em;
+}
+
+.reference-note {
+    margin-top: 1.25rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.command-section {
+    padding: 2.25rem 0;
+}
+
+.command-section h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.section-lead {
+    margin-bottom: 1.25rem;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.command-grid {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.command-card {
+    padding: 0.9rem 1rem;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: background 0.15s ease, border-color 0.15s ease,
+                transform 0.05s ease;
+}
+
+.command-card:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+}
+
+.command-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+
+.command-head code {
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--accent-2);
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.command-head .tag {
+    margin-left: 0;
+    flex-shrink: 0;
+}
+
+.command-card p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.command-card p code {
+    font-size: 0.85em;
+    padding: 0.05em 0.3em;
+}
+
+.command-card.hidden,
+.command-section.hidden {
+    display: none;
+}
+
+.no-results {
+    display: none;
+    margin: 2rem 0 3rem;
+    padding: 1.25rem;
+    text-align: center;
+    color: var(--text-muted);
+    background: var(--bg-elev);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+}
+
+.no-results.visible {
+    display: block;
+}
+
+@media (min-width: 760px) {
+    section[id] {
+        scroll-margin-top: 8.5rem;
+    }
+
+    .search-panel {
+        position: sticky;
+        top: 58px;
+        z-index: 8;
+        backdrop-filter: blur(8px);
+    }
+}
+
+@media (max-width: 700px) {
+    .command-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .search-hint {
+        display: none;
+    }
+
+    .search-panel {
+        align-items: stretch;
+    }
+
+    .search-field {
+        min-width: 100%;
+    }
+
+    .search-count {
+        align-self: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    nav {
+        gap: 1rem;
+    }
+
+    header h1 {
+        font-size: 2rem;
+    }
+
+    .command-section {
+        padding: 1.75rem 0;
+    }
+}

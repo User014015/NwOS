@@ -348,7 +348,7 @@ static const uint16_t LogoNwOS[] = {
   0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020, 0x0020,
   0x0020, 0x0020, 0x0020, 0x0020
 };
-const int LOGO_NWOS_WIDTH  = 64;
-const int LOGO_NWOS_HEIGHT = 64;
+static const int LOGO_NWOS_WIDTH  = 64;
+static const int LOGO_NWOS_HEIGHT = 64;
 
 #endif

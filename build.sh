@@ -17,10 +17,15 @@ echo
 BUILD=build
 TARGET=x86_64-unknown-none-elf
 
+BOOT_WIDTH=680
+BOOT_HEIGHT=480
+GUI_WIDTH=1280
+GUI_HEIGHT=720
+
 CFLAGS="--target=$TARGET -m64 -mno-red-zone -mcmodel=kernel -ffreestanding \
 -fno-stack-protector -fno-pic -fno-pie -fno-builtin -nostdlib \
 -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -Os \
--I drivers -I sys/net -I sys/kernel/network"
+-I drivers -I sys/net -I sys/kernel/network -I build"
 
 SOURCES=(
     sys/kernel/kernel.c
@@ -35,6 +40,7 @@ SOURCES=(
     sys/kernel/Apps/wordgenerator/wordgenerator.c
     sys/kernel/Apps/textredactor/textredactor.c
     drivers/keyboard.c
+    drivers/mouse.c
     drivers/disk.c
     sys/kernel/network/e1000.c
     sys/kernel/network/pci.c
@@ -42,6 +48,10 @@ SOURCES=(
     sys/kernel/network/net.c
     sys/kernel/fb.c
     sys/kernel/Apps/Games/snake.c
+    sys/kernel/apps_list.c
+    sys/kernel/dead_boot.c
+    sys/kernel/Apps/Games/rps.c
+    sys/kernel/Apps/Games/game_coin.c
 )
 
 mkdir -p "$BUILD"
@@ -49,9 +59,23 @@ mkdir -p img
 rm -f "$BUILD"/*.o "$BUILD"/kernel.elf "$BUILD"/kernel.bin
 rm -f NwOS.iso
 
-STEPS=$(( ${#SOURCES[@]} + 5 ))
+STEPS=$(( ${#SOURCES[@]} + 6 ))
 N=0
 step() { N=$((N + 1)); echo "[$N/$STEPS] $1"; }
+
+step "Preparing video config and wallpaper..."
+cat > "$BUILD/video_config.h" <<EOF
+#ifndef NWOS_VIDEO_CONFIG_H
+#define NWOS_VIDEO_CONFIG_H
+
+#define NWOS_BOOT_WIDTH $BOOT_WIDTH
+#define NWOS_BOOT_HEIGHT $BOOT_HEIGHT
+#define NWOS_GUI_WIDTH $GUI_WIDTH
+#define NWOS_GUI_HEIGHT $GUI_HEIGHT
+
+#endif
+EOF
+python3 tools/gen_wallpaper.py || fail
 
 step "Assembling bootloader..."
 nasm -f bin sys/boot/boot.asm -o "$BUILD/boot.bin" || fail
@@ -98,7 +122,7 @@ timeout: 0
 /NwOS
     protocol: multiboot2
     path: boot():/boot/kernel.elf
-    framebuffer: 640x400x32
+    resolution: ${BOOT_WIDTH}x${BOOT_HEIGHT}x32
 EOF
 
 step "Building ISO with xorriso..."

@@ -7,6 +7,29 @@ static int is_digit(char c)
 }
 
 
+static int is_hex_digit(char c)
+{
+    return (c >= '0' && c <= '9') ||
+           (c >= 'a' && c <= 'f') ||
+           (c >= 'A' && c <= 'F');
+}
+
+
+static char decode_escape(char c)
+{
+    switch (c)
+    {
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case '\\': return '\\';
+        case '"': return '"';
+        case '\'': return '\'';
+        default:  return c;
+    }
+}
+
+
 static int is_letter(char c)
 {
     return (c >= 'a' && c <= 'z') ||
@@ -94,6 +117,30 @@ static void skip_whitespace(Lexer* lexer)
             continue;
         }
 
+        if (c == '\\')
+        {
+            unsigned int i = 0;
+            unsigned int j = 0;
+
+            while (lexer->source[lexer->position + i] == '\\')
+                i++;
+
+            while (lexer->source[lexer->position + i + j] == ' ' ||
+                   lexer->source[lexer->position + i + j] == '\t')
+                j++;
+
+            if (lexer->source[lexer->position + i + j] == '\r')
+                j++;
+
+            if (lexer->source[lexer->position + i + j] == '\n')
+            {
+                unsigned int k;
+                for (k = 0; k < i + j + 1; k++)
+                    advance(lexer);
+                continue;
+            }
+        }
+
         break;
     }
 }
@@ -138,8 +185,29 @@ static Token read_identifier(Lexer* lexer)
     else if (strcmp(token.text, "continue") == 0)
         token.type = TOKEN_CONTINUE;
 
+    else if (strcmp(token.text, "call") == 0)
+        token.type = TOKEN_CALL;
+
+    else if (strcmp(token.text, "sleep") == 0)
+        token.type = TOKEN_SLEEP;
+
+    else if (strcmp(token.text, "__asm__") == 0)
+        token.type = TOKEN_ASM;
+
+    else if (strcmp(token.text, "nonzero") == 0)
+        token.type = TOKEN_NONZERO;
+
+    else if (strcmp(token.text, "const") == 0)
+        token.type = TOKEN_CONST;
+
+    else if (strcmp(token.text, "needed") == 0)
+        token.type = TOKEN_NEEDED;
+
     else if (strcmp(token.text, "rect") == 0)
         token.type = TOKEN_RECT;
+
+    else if (strcmp(token.text, "draw") == 0)
+        token.type = TOKEN_DRAW;
 
     else if (strcmp(token.text, "flt") == 0)
         token.type = TOKEN_FLOAT_TYPE;
@@ -164,6 +232,9 @@ static Token read_identifier(Lexer* lexer)
 
     else if (strcmp(token.text, "endl") == 0)
         token.type = TOKEN_ENDL;
+
+    else if (strcmp(token.text, "no_endl") == 0)
+        token.type = TOKEN_NO_ENDL;
 
     else if (strcmp(token.text, "cin") == 0)
         token.type = TOKEN_CIN;
@@ -218,6 +289,25 @@ static Token read_number(Lexer* lexer)
 
     Token token = make_token(TOKEN_NUMBER, line, column);
 
+    if (current_char(lexer) == '0' &&
+        (peek_char(lexer) == 'x' ||
+         peek_char(lexer) == 'X'))
+    {
+        token_add_char(&token, current_char(lexer));
+        advance(lexer);
+
+        token_add_char(&token, current_char(lexer));
+        advance(lexer);
+
+        while (is_hex_digit(current_char(lexer)))
+        {
+            token_add_char(&token, current_char(lexer));
+            advance(lexer);
+        }
+
+        return token;
+    }
+
     while (is_digit(current_char(lexer)))
     {
         token_add_char(&token, current_char(lexer));
@@ -261,12 +351,13 @@ static Token read_string(Lexer* lexer)
     {
         if (current_char(lexer) == '\\')
         {
-            token_add_char(&token, current_char(lexer));
             advance(lexer);
 
             if (current_char(lexer) != '\0')
             {
-                token_add_char(&token, current_char(lexer));
+                token_add_char(
+                    &token,
+                    decode_escape(current_char(lexer)));
                 advance(lexer);
             }
 
@@ -298,12 +389,13 @@ static Token read_char(Lexer* lexer)
 
     if (current_char(lexer) == '\\')
     {
-        token_add_char(&token, current_char(lexer));
         advance(lexer);
 
         if (current_char(lexer) != '\0')
         {
-            token_add_char(&token, current_char(lexer));
+            token_add_char(
+                &token,
+                decode_escape(current_char(lexer)));
             advance(lexer);
         }
     }
@@ -335,6 +427,7 @@ const char* token_type_name(TokenType type)
         case TOKEN_HEADER:         return "HEADER";
 
         case TOKEN_INT_TYPE:       return "INT_TYPE";
+        case TOKEN_VOID_TYPE:      return "VOID_TYPE";
         case TOKEN_FLOAT_TYPE:     return "FLOAT_TYPE";
         case TOKEN_BOOL_TYPE:      return "BOOL_TYPE";
         case TOKEN_LONG_TYPE:      return "LONG_TYPE";
@@ -351,6 +444,12 @@ const char* token_type_name(TokenType type)
         case TOKEN_FOR:            return "FOR";
         case TOKEN_BREAK:          return "BREAK";
         case TOKEN_CONTINUE:       return "CONTINUE";
+        case TOKEN_CALL:           return "CALL";
+        case TOKEN_SLEEP:          return "SLEEP";
+        case TOKEN_ASM:            return "ASM";
+        case TOKEN_NONZERO:        return "NONZERO";
+        case TOKEN_CONST:          return "CONST";
+        case TOKEN_NEEDED:         return "NEEDED";
 
         case TOKEN_IDENTIFIER:     return "IDENTIFIER";
         case TOKEN_NUMBER:         return "NUMBER";
@@ -360,8 +459,10 @@ const char* token_type_name(TokenType type)
 
         case TOKEN_NAMESPACE:      return "NAMESPACE";
         case TOKEN_SCOPE:          return "SCOPE";
+        case TOKEN_COLON:          return "COLON";
         case TOKEN_OUT:            return "OUT";
         case TOKEN_ENDL:           return "ENDL";
+        case TOKEN_NO_ENDL:        return "NO_ENDL";
         case TOKEN_CIN:            return "CIN";
         case TOKEN_LINE:           return "LINE";
 
@@ -413,6 +514,8 @@ const char* token_type_name(TokenType type)
         case TOKEN_COLOR:          return "COLOR";
         case TOKEN_GETKEY:         return "GETKEY";
         case TOKEN_CLEAR:          return "CLEAR";
+        case TOKEN_RECT:           return "RECT";
+        case TOKEN_DRAW:           return "DRAW";
 
         case TOKEN_ERROR:          return "ERROR";
 
@@ -507,6 +610,23 @@ static Token lexer_next_impl(Lexer* lexer)
             );
 
             token_add_char(&token, '1');
+            advance(lexer);
+
+            token_add_char(&token, 'A');
+            advance(lexer);
+
+            return token;
+        }
+
+        if (c == '0' && peek_char(lexer) == 'A')
+        {
+            Token token = make_token(
+                TOKEN_VOID_TYPE,
+                line,
+                column
+            );
+
+            token_add_char(&token, '0');
             advance(lexer);
 
             token_add_char(&token, 'A');
@@ -759,6 +879,10 @@ static Token lexer_next_impl(Lexer* lexer)
 
         case ';':
             token = make_token(TOKEN_SEMICOLON, line, column);
+            break;
+
+        case ':':
+            token = make_token(TOKEN_COLON, line, column);
             break;
 
         default:
