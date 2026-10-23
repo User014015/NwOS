@@ -37,7 +37,47 @@ compiler/builded/nwc
 
 ### 2.2. Написать программу
 
+<<<<<<< HEAD
 Создай файл, например `NwDev/hello.nw`:
+=======
+then run this: tools/nwimg.exe add NwOS.img NwDev/test.nw test.nw
+
+(make sure that: you has nwimg.exe at tools, or make your path)
+
+(make sure that: you has NwOS.img, and right path)
+
+(make sure that: you has: file.nw, or any other file with .nw at path: NwDev/)
+
+if you compiled right: launch NwOS from qemu -> type: run:
+
+
+run <your file name.nwo>
+
+
+
+make sure that file format is .nwo to launch it
+
+or you can edit .nw
+
+
+## NwC TUTORIAL
+
+Basic syntax:
+
+
+
+Comments right now not supported.
+```code
+1A - int
+
+flt - float
+
+lng - long
+
+char var[32] - char (like C)
+
+str var - string
+>>>>>>> 4719702b001c90e4d18471d67b22ff5b3e56d123
 
 ```c
 #include <nwc.h>
@@ -48,6 +88,7 @@ compiler/builded/nwc
 }
 ```
 
+<<<<<<< HEAD
 ### 2.3. Скомпилировать
 
 ```bash
@@ -1009,3 +1050,8 @@ call hello("Bob");   // функция hello должна существоват
 9. Динамическое переключение разрешения без перезагрузки.
 
 Пока всё это — только планы. В гайде описано лишь то, что уже реально работает.
+=======
+nw::cin >> var
+nw::line(nw::cin, var) // type all line
+```
+>>>>>>> 4719702b001c90e4d18471d67b22ff5b3e56d123

@@ -15,7 +15,12 @@ build/
 compiler/builded/
 compiler/nwc
 rootfs/
+<<<<<<< HEAD
 nwimg
 cloc
 c
 full_lnw.txt
+=======
+iso/
+nwimg
+>>>>>>> 4719702b001c90e4d18471d67b22ff5b3e56d123
