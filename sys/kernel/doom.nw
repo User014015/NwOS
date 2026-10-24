@@ -1,10 +1,6 @@
-// Doom on NwC
-// not working, not tested
-// but we add this in project
-// we already has a compiler
-// that outputs 3D .bmp files
-// who can contains: cube,
-// 2D House.
+// Doom on new NwC
+// Cant work because we saved 1.x syntax
+// and gonna support 1.x version
 
 mas map [
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,

@@ -356,20 +356,20 @@ static int u2s(unsigned int v, char *out) {
 static void draw_topbar(void) {
     gfx_rect(0, 0, 640, 32, THEME_BAR);
 
-    const char *title = "NwOS 2.0.8";
+    const char *title = "NwOS 2.0.9";
     switch (current) {
-        case SCR_WELCOME: title = "NwOS 2.0.8  |  Welcome";       break;
-        case SCR_MENU:    title = "NwOS 2.0.8  |  Personal Menu"; break;
-        case SCR_SHELL:   title = "NwOS 2.0.8  |  Shell";         break;
-        case SCR_CALC:    title = "NwOS 2.0.8  |  Calculator";    break;
-        case SCR_GAME:    title = "NwOS 2.0.8  |  Game";          break;
-        case SCR_GAMES:   title = "NwOS 2.0.8  |  Games";         break;
-        case SCR_SNAKE:   title = "NwOS 2.0.8  |  Snake";         break;
-        case SCR_DEMO3D:  title = "NwOS 2.0.8  |  3D Demo";       break;
-        case SCR_RAYCAST: title = "NwOS 2.0.8  |  Castle NwOS";   break;
-        case SCR_TALONS:  title = "NwOS 2.0.8  |  Talons";        break;
-        case SCR_CHAT:    title = "NwOS 2.0.8  |  Chat";          break;
-        case SCR_EDITOR:  title = "NwOS 2.0.8  |  Editor";        break;
+        case SCR_WELCOME: title = "NwOS 2.0.9  |  Welcome";       break;
+        case SCR_MENU:    title = "NwOS 2.0.9  |  Personal Menu"; break;
+        case SCR_SHELL:   title = "NwOS 2.0.9  |  Shell";         break;
+        case SCR_CALC:    title = "NwOS 2.0.9  |  Calculator";    break;
+        case SCR_GAME:    title = "NwOS 2.0.9  |  Game";          break;
+        case SCR_GAMES:   title = "NwOS 2.0.9  |  Games";         break;
+        case SCR_SNAKE:   title = "NwOS 2.0.9  |  Snake";         break;
+        case SCR_DEMO3D:  title = "NwOS 2.0.9  |  3D Demo";       break;
+        case SCR_RAYCAST: title = "NwOS 2.0.9  |  Castle NwOS";   break;
+        case SCR_TALONS:  title = "NwOS 2.0.9  |  Talons";        break;
+        case SCR_CHAT:    title = "NwOS 2.0.9  |  Chat";          break;
+        case SCR_EDITOR:  title = "NwOS 2.0.9  |  Editor";        break;
     }
     gfx_puts(8, 8, title, THEME_BAR_FG, THEME_BAR);
     char buf[64];

@@ -321,14 +321,14 @@ static void cmd_cnf_set(const char *args) {
 }
 
 static void nwfetch(void) {
-    print("   ..      "); print("NwOS v2.0.7\n");
+    print("   ..      "); print("NwOS v2.0.9\n");
     print("  /  \\     "); print("-------------------\n");
     print("  |  |     "); print("Kernel:     C\n");
     print("  |  |     "); print("Video:      VGA\n");
     print("  |  |     "); print("Resolution: 640x480\n");
     print("  ----     "); print("Bootloader: NASM\n");
     print("  |  |     "); print("Arch:       32-bit (x86)\n");
-    print("  ---      "); print("Shell:      v2.0.7\n");
+    print("  ---      "); print("Shell:      v2.0.9\n");
 }
 
 static void cmd_help(void) {
@@ -353,7 +353,7 @@ static void cmd_help(void) {
 }
 
 static void current_ver(void) {
-    push_line("\nCurrent version: 2.0.7\n");
+    push_line("\nCurrent version: 2.0.9\n");
 }
 
 static void HelpMore2(void) {
@@ -380,7 +380,7 @@ static void HelpMore(void) {
 }
 
 static void cmd_about(void) {
-    push_line("NwOS v2.0.7");
+    push_line("NwOS v2.0.9");
     push_line("Copyright (c) 2026 User014015");
     push_line("Kernel: C + NASM, clang + ld.lld");
     push_line("VGA 640x480x16, PS/2 keyboard + mouse");
@@ -633,7 +633,8 @@ void shell_init(void) {
     set_theme_light();
     len = 0; buf[0] = 0;
     line_count = 0;
-    push_line("NwOS Shell v2.0.7");
+    push_line("NwOS Shell v2.0.9 Beta");
+    push_line("(Not supports, check 1.x)");
     push_line("Copyright (c) 2026 User014015");
     push_line("Type 'help' for commands.");
     push_line("");
@@ -643,7 +644,7 @@ void shell_draw(void) {
     gfx_clear(THEME_BG);
 
     gfx_rect(0, 0, 640, 32, THEME_BAR);
-    gfx_puts(8, 8, "NwOS 2.0.7  |  Shell", THEME_BAR_FG, THEME_BAR);
+    gfx_puts(8, 8, "NwOS 2.0.9  |  Shell", THEME_BAR_FG, THEME_BAR);
 
     int visible = 22;
     int end   = line_count - scroll_offset;
